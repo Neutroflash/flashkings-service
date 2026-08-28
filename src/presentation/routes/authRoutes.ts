@@ -4,6 +4,8 @@ import { PrismaUserRepository } from "../../infrastructure/database/PrismaUserRe
 import { RegisterUseCase } from "../../application/auth/RegisterUseCase";
 import { LoginUseCase } from "../../application/auth/LoginUseCase";
 import { RefreshTokenUseCase } from "../../application/auth/RefreshTokenUseCase";
+import { UpdateProfileUseCase } from "../../application/auth/UpdateProfileUseCase";
+import { GetCurrentUserUseCase } from "../../application/auth/GetCurrentUserUseCase";
 import { AuthController } from "../controllers/AuthController";
 import { asyncHandler } from "../middlewares/asyncHandler";
 import { authenticateJWT } from "../middlewares/authenticateJWT";
@@ -14,6 +16,8 @@ const authController = new AuthController(
   new RegisterUseCase(userRepository),
   new LoginUseCase(userRepository),
   new RefreshTokenUseCase(userRepository),
+  new UpdateProfileUseCase(userRepository),
+  new GetCurrentUserUseCase(userRepository),
 );
 
 export const authRoutes = Router();
@@ -24,3 +28,4 @@ authRoutes.post("/login", authLimiter, asyncHandler(authController.login));
 authRoutes.post("/refresh", authLimiter, asyncHandler(authController.refresh));
 authRoutes.post("/logout", asyncHandler(authController.logout));
 authRoutes.get("/me", authenticateJWT, asyncHandler(authController.me));
+authRoutes.patch("/me", authenticateJWT, asyncHandler(authController.updateProfile));

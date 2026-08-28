@@ -223,7 +223,10 @@ export class PrismaOrderRepository implements IOrderRepository {
   async findMany(filters: OrderFilters): Promise<PaginatedOrders> {
     const page = filters.page && filters.page > 0 ? filters.page : 1;
     const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 20;
-    const where: Prisma.OrderWhereInput = filters.status ? { status: filters.status } : {};
+    const where: Prisma.OrderWhereInput = {
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.userId ? { userId: filters.userId } : {}),
+    };
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({

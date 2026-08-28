@@ -3,6 +3,8 @@ import { z } from "zod";
 import { ValidateCartUseCase } from "../../application/orders/ValidateCartUseCase";
 import { CreateOrderUseCase } from "../../application/orders/CreateOrderUseCase";
 import { GetOrderByIdUseCase } from "../../application/orders/GetOrderByIdUseCase";
+import { ListOrdersUseCase } from "../../application/orders/ListOrdersUseCase";
+import { toPublicOrder } from "../../domain/entities/Order";
 import { env } from "../../config/env";
 
 const cartItemSchema = z.object({
@@ -27,6 +29,7 @@ export class OrderController {
     private readonly validateCartUseCase: ValidateCartUseCase,
     private readonly createOrderUseCase: CreateOrderUseCase,
     private readonly getOrderByIdUseCase: GetOrderByIdUseCase,
+    private readonly listOrdersUseCase: ListOrdersUseCase,
   ) {}
 
   // Non-authoritative UX check before checkout — see ValidateCartUseCase.
@@ -60,5 +63,15 @@ export class OrderController {
   getById = async (req: Request, res: Response): Promise<void> => {
     const order = await this.getOrderByIdUseCase.execute(req.params.id, req.user?.role);
     res.status(200).json({ order });
+  };
+
+  // Protected by authenticateJWT at the route level — req.user is guaranteed. Always sanitized
+  // (never the ADMIN view), regardless of the caller's role: this is "my orders", not an admin tool.
+  mine = async (req: Request, res: Response): Promise<void> => {
+    const query = z
+      .object({ page: z.coerce.number().int().positive().optional(), pageSize: z.coerce.number().int().positive().max(50).optional() })
+      .parse(req.query);
+    const result = await this.listOrdersUseCase.execute({ userId: req.user!.id, ...query });
+    res.status(200).json({ ...result, items: result.items.map(toPublicOrder) });
   };
 }

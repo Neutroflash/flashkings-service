@@ -6,9 +6,10 @@ import { stockHoldScheduler } from "../../infrastructure/queue/stockHoldSchedule
 import { ValidateCartUseCase } from "../../application/orders/ValidateCartUseCase";
 import { CreateOrderUseCase } from "../../application/orders/CreateOrderUseCase";
 import { GetOrderByIdUseCase } from "../../application/orders/GetOrderByIdUseCase";
+import { ListOrdersUseCase } from "../../application/orders/ListOrdersUseCase";
 import { OrderController } from "../controllers/OrderController";
 import { asyncHandler } from "../middlewares/asyncHandler";
-import { attachUserIfPresent } from "../middlewares/authenticateJWT";
+import { attachUserIfPresent, authenticateJWT } from "../middlewares/authenticateJWT";
 
 const orderRepository = new PrismaOrderRepository(prisma);
 const productRepository = new PrismaProductRepository(prisma);
@@ -16,6 +17,7 @@ const orderController = new OrderController(
   new ValidateCartUseCase(productRepository),
   new CreateOrderUseCase(orderRepository, stockHoldScheduler),
   new GetOrderByIdUseCase(orderRepository),
+  new ListOrdersUseCase(orderRepository),
 );
 
 export const orderRoutes = Router();
@@ -24,4 +26,6 @@ export const orderRoutes = Router();
 // links the order to a logged-in user when a session cookie is present, without requiring one.
 orderRoutes.post("/validate-cart", asyncHandler(orderController.validateCart));
 orderRoutes.post("/", attachUserIfPresent, asyncHandler(orderController.create));
+// Registered before "/:id" — otherwise Express would try to match "mine" as an order id.
+orderRoutes.get("/mine", authenticateJWT, asyncHandler(orderController.mine));
 orderRoutes.get("/:id", attachUserIfPresent, asyncHandler(orderController.getById));

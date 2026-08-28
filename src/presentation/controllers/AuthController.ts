@@ -3,6 +3,8 @@ import { z } from "zod";
 import { RegisterUseCase } from "../../application/auth/RegisterUseCase";
 import { LoginUseCase } from "../../application/auth/LoginUseCase";
 import { RefreshTokenUseCase } from "../../application/auth/RefreshTokenUseCase";
+import { UpdateProfileUseCase } from "../../application/auth/UpdateProfileUseCase";
+import { GetCurrentUserUseCase } from "../../application/auth/GetCurrentUserUseCase";
 import { clearAuthCookies, REFRESH_TOKEN_COOKIE, setAuthCookies } from "../../infrastructure/security/cookies";
 import { UnauthorizedError } from "../../shared/errors/AppError";
 
@@ -17,11 +19,19 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const updateProfileSchema = z.object({
+  name: z.string().min(2).optional(),
+  phone: z.string().trim().min(6).max(20).nullable().optional(),
+  defaultAddress: z.string().trim().min(5).nullable().optional(),
+});
+
 export class AuthController {
   constructor(
     private readonly registerUseCase: RegisterUseCase,
     private readonly loginUseCase: LoginUseCase,
     private readonly refreshTokenUseCase: RefreshTokenUseCase,
+    private readonly updateProfileUseCase: UpdateProfileUseCase,
+    private readonly getCurrentUserUseCase: GetCurrentUserUseCase,
   ) {}
 
   register = async (req: Request, res: Response): Promise<void> => {
@@ -52,7 +62,17 @@ export class AuthController {
     res.status(200).json({ message: "Sesión cerrada" });
   };
 
+  // req.user carries only the JWT payload (id/email/role) — this resolves the full row
+  // (name/phone/defaultAddress) so the account page has something real to render/prefill.
   me = async (req: Request, res: Response): Promise<void> => {
-    res.status(200).json({ user: req.user ?? null });
+    const user = req.user ? await this.getCurrentUserUseCase.execute(req.user.id) : null;
+    res.status(200).json({ user });
+  };
+
+  // req.user is guaranteed here — authenticateJWT runs before this handler (see authRoutes.ts).
+  updateProfile = async (req: Request, res: Response): Promise<void> => {
+    const input = updateProfileSchema.parse(req.body);
+    const user = await this.updateProfileUseCase.execute(req.user!.id, input);
+    res.status(200).json({ user });
   };
 }

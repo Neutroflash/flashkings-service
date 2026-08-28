@@ -16,6 +16,8 @@ export interface CreateOrderInput {
 
 export interface OrderFilters {
   status?: OrderStatus;
+  /** Restricts to a single customer's orders — see GET /api/orders/mine. */
+  userId?: string;
   page?: number;
   pageSize?: number;
 }
