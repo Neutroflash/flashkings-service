@@ -78,20 +78,29 @@ model ProductVariant {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   orderItems OrderItem[]
+  images     ProductImage[]
 
   @@index([productId])
   @@map("product_variants")
 }
 
+// productVariantId is nullable: null means a "shared" image shown as the fallback gallery for
+// any variant that has none of its own, and it's the only kind ProductCard (catalog grid, which
+// never knows about a selected variant) can show. isPrimary's "only one" invariant is scoped to
+// (productId, productVariantId) as a pair, so each variant can also have its own designated
+// primary among just its own images, independent of the shared bucket's primary.
 model ProductImage {
-  id        String  @id @default(uuid())
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String
-  altText   String? @map("alt_text")
-  isPrimary Boolean @default(false) @map("is_primary")
+  id               String          @id @default(uuid())
+  productId        String          @map("product_id")
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productVariantId String?         @map("product_variant_id")
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  url              String
+  altText          String?         @map("alt_text")
+  isPrimary        Boolean         @default(false) @map("is_primary")
 
   @@index([productId])
+  @@index([productVariantId])
   @@map("product_images")
 }
 

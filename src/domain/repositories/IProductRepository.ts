@@ -51,6 +51,8 @@ export interface UpdateProductVariantData {
 
 export interface AddProductImageInput {
   productId: string;
+  /** Omit/null = shared image (fallback for any variant with none of its own). */
+  productVariantId?: string | null;
   url: string;
   altText?: string;
   isPrimary?: boolean;
@@ -60,6 +62,7 @@ export interface UpdateProductImageData {
   url?: string;
   altText?: string | null;
   isPrimary?: boolean;
+  productVariantId?: string | null;
 }
 
 export interface IProductRepository {
@@ -70,7 +73,8 @@ export interface IProductRepository {
   /** ADMIN-only. reservedStock is intentionally not editable — it's system-managed by the order flow. */
   updateVariant(variantId: string, data: UpdateProductVariantData): Promise<ProductVariant>;
   findVariantById(variantId: string): Promise<ProductVariant | null>;
-  /** ADMIN-only. Marking isPrimary:true atomically unsets any other primary image for the same product. */
+  /** ADMIN-only. Marking isPrimary:true atomically unsets any other primary image within the
+   * same (productId, productVariantId) scope. */
   addImage(input: AddProductImageInput): Promise<ProductImage>;
   updateImage(imageId: string, data: UpdateProductImageData): Promise<ProductImage>;
   deleteImage(imageId: string): Promise<void>;

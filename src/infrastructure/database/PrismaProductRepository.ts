@@ -157,16 +157,22 @@ export class PrismaProductRepository implements IProductRepository {
   }
 
   async addImage(input: AddProductImageInput): Promise<ProductImage> {
+    const productVariantId = input.productVariantId ?? null;
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // Enforce "at most one primary image per product" at the point of writing, rather than
-        // relying on the caller to have unset the previous one first.
+        // Enforce "at most one primary image" scoped to (productId, productVariantId) — a shared
+        // image (productVariantId: null) and each variant's own images each get their own
+        // independent "primary" slot, rather than one primary for the whole product.
         if (input.isPrimary) {
-          await tx.productImage.updateMany({ where: { productId: input.productId }, data: { isPrimary: false } });
+          await tx.productImage.updateMany({
+            where: { productId: input.productId, productVariantId },
+            data: { isPrimary: false },
+          });
         }
         return tx.productImage.create({
           data: {
             productId: input.productId,
+            productVariantId,
             url: input.url,
             altText: input.altText ?? null,
             isPrimary: input.isPrimary ?? false,
@@ -181,10 +187,12 @@ export class PrismaProductRepository implements IProductRepository {
   async updateImage(imageId: string, data: UpdateProductImageData): Promise<ProductImage> {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.productImage.findUniqueOrThrow({ where: { id: imageId } });
+        const targetVariantId = data.productVariantId !== undefined ? data.productVariantId : existing.productVariantId;
+
         if (data.isPrimary) {
-          const existing = await tx.productImage.findUniqueOrThrow({ where: { id: imageId } });
           await tx.productImage.updateMany({
-            where: { productId: existing.productId, NOT: { id: imageId } },
+            where: { productId: existing.productId, productVariantId: targetVariantId, NOT: { id: imageId } },
             data: { isPrimary: false },
           });
         }
@@ -194,6 +202,7 @@ export class PrismaProductRepository implements IProductRepository {
             ...(data.url !== undefined ? { url: data.url } : {}),
             ...(data.altText !== undefined ? { altText: data.altText } : {}),
             ...(data.isPrimary !== undefined ? { isPrimary: data.isPrimary } : {}),
+            ...(data.productVariantId !== undefined ? { productVariantId: data.productVariantId } : {}),
           },
         });
       });

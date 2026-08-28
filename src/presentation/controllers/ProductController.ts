@@ -54,12 +54,15 @@ const addImageSchema = z.object({
   url: z.string().url(),
   altText: z.string().optional(),
   isPrimary: z.boolean().optional(),
+  // Omit/null = shared image (fallback for any variant with none of its own).
+  productVariantId: z.string().uuid().nullable().optional(),
 });
 
 const updateImageSchema = z.object({
   url: z.string().url().optional(),
   altText: z.string().optional(),
   isPrimary: z.boolean().optional(),
+  productVariantId: z.string().uuid().nullable().optional(),
 });
 
 export class ProductController {
