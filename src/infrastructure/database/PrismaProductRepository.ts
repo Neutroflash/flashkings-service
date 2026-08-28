@@ -1,13 +1,16 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import {
+  AddProductImageInput,
   CreateProductData,
   IProductRepository,
   PaginatedResult,
   ProductFilters,
+  UpdateProductImageData,
   UpdateProductVariantData,
 } from "../../domain/repositories/IProductRepository";
 import { Product } from "../../domain/entities/Product";
 import { ProductVariant } from "../../domain/entities/ProductVariant";
+import { ProductImage } from "../../domain/entities/ProductImage";
 import { NotFoundError } from "../../shared/errors/AppError";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -151,5 +154,59 @@ export class PrismaProductRepository implements IProductRepository {
   async findVariantById(variantId: string): Promise<ProductVariant | null> {
     const variant = await this.prisma.productVariant.findUnique({ where: { id: variantId } });
     return variant ? toVariantDomain(variant) : null;
+  }
+
+  async addImage(input: AddProductImageInput): Promise<ProductImage> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Enforce "at most one primary image per product" at the point of writing, rather than
+        // relying on the caller to have unset the previous one first.
+        if (input.isPrimary) {
+          await tx.productImage.updateMany({ where: { productId: input.productId }, data: { isPrimary: false } });
+        }
+        return tx.productImage.create({
+          data: {
+            productId: input.productId,
+            url: input.url,
+            altText: input.altText ?? null,
+            isPrimary: input.isPrimary ?? false,
+          },
+        });
+      });
+    } catch {
+      throw new NotFoundError("Producto no encontrado");
+    }
+  }
+
+  async updateImage(imageId: string, data: UpdateProductImageData): Promise<ProductImage> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (data.isPrimary) {
+          const existing = await tx.productImage.findUniqueOrThrow({ where: { id: imageId } });
+          await tx.productImage.updateMany({
+            where: { productId: existing.productId, NOT: { id: imageId } },
+            data: { isPrimary: false },
+          });
+        }
+        return tx.productImage.update({
+          where: { id: imageId },
+          data: {
+            ...(data.url !== undefined ? { url: data.url } : {}),
+            ...(data.altText !== undefined ? { altText: data.altText } : {}),
+            ...(data.isPrimary !== undefined ? { isPrimary: data.isPrimary } : {}),
+          },
+        });
+      });
+    } catch {
+      throw new NotFoundError("Imagen no encontrada");
+    }
+  }
+
+  async deleteImage(imageId: string): Promise<void> {
+    try {
+      await this.prisma.productImage.delete({ where: { id: imageId } });
+    } catch {
+      throw new NotFoundError("Imagen no encontrada");
+    }
   }
 }

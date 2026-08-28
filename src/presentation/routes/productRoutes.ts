@@ -6,6 +6,9 @@ import { GetProductsUseCase } from "../../application/products/GetProductsUseCas
 import { GetProductBySlugUseCase } from "../../application/products/GetProductBySlugUseCase";
 import { CreateProductUseCase } from "../../application/products/CreateProductUseCase";
 import { UpdateProductVariantUseCase } from "../../application/products/UpdateProductVariantUseCase";
+import { AddProductImageUseCase } from "../../application/products/AddProductImageUseCase";
+import { UpdateProductImageUseCase } from "../../application/products/UpdateProductImageUseCase";
+import { DeleteProductImageUseCase } from "../../application/products/DeleteProductImageUseCase";
 import { ProductController } from "../controllers/ProductController";
 import { asyncHandler } from "../middlewares/asyncHandler";
 import { attachUserIfPresent, authenticateJWT } from "../middlewares/authenticateJWT";
@@ -19,6 +22,9 @@ const productController = new ProductController(
   new GetProductBySlugUseCase(productRepository),
   new CreateProductUseCase(productRepository, categoryRepository),
   new UpdateProductVariantUseCase(productRepository),
+  new AddProductImageUseCase(productRepository),
+  new UpdateProductImageUseCase(productRepository),
+  new DeleteProductImageUseCase(productRepository),
 );
 
 export const productRoutes = Router();
@@ -35,4 +41,22 @@ productRoutes.patch(
   authenticateJWT,
   requireRole("ADMIN"),
   asyncHandler(productController.updateVariant),
+);
+productRoutes.post(
+  "/:productId/images",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.addImage),
+);
+productRoutes.patch(
+  "/images/:imageId",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.updateImage),
+);
+productRoutes.delete(
+  "/images/:imageId",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.deleteImage),
 );
