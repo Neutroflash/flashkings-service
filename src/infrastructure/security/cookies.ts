@@ -4,8 +4,16 @@ import { env } from "../../config/env";
 const baseCookieOptions: CookieOptions = {
   httpOnly: true,
   secure: env.isProduction,
-  sameSite: "strict",
-  domain: env.isProduction ? env.cookieDomain : undefined,
+  // "none" in production: without a shared registrable domain between the API and the frontend
+  // (see the comment on env.cookieDomain), every request from the frontend to the API is
+  // cross-site, and SameSite=Strict/Lax would silently stop the browser from ever sending these
+  // cookies back — login would appear to succeed (Set-Cookie arrives) but the session would
+  // never actually persist on the next request. CSRF protection then rests on the CORS origin
+  // allowlist (app.ts) instead of SameSite — every mutating route already requires a JSON body,
+  // which a plain HTML form (the classic CSRF vector) can't send, so it still needs a real
+  // fetch()/XHR from an allowlisted origin to pass CORS preflight.
+  sameSite: env.isProduction ? "none" : "strict",
+  domain: env.cookieDomain,
   path: "/",
 };
 

@@ -18,7 +18,11 @@ export const env = {
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? "15m",
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? "7d",
   },
-  cookieDomain: process.env.COOKIE_DOMAIN ?? "localhost",
+  // Unset by default (host-only cookie) — only set COOKIE_DOMAIN once the API and frontend
+  // share a real registrable domain as subdomains (e.g. api.flashkings.pe / flashkings.pe).
+  // Without one (Render's *.onrender.com + Vercel's *.vercel.app, unrelated domains), setting
+  // this to either side's domain makes the browser reject the Set-Cookie outright.
+  cookieDomain: process.env.COOKIE_DOMAIN || undefined,
   // Comma-separated allowlist (e.g. "https://flashkings.pe,https://www.flashkings.pe") — never a
   // wildcard, since credentials: true CORS + an open origin would defeat the SameSite cookie protection.
   corsOrigins: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",").map((origin) => origin.trim()),
