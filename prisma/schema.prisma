@@ -1,0 +1,168 @@
+// Flashkings E-Commerce - Prisma Schema
+// PostgreSQL + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role     @default(CLIENT)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  brand       String
+  categoryId  String   @map("category_id")
+  category    Category @relation(fields: [categoryId], references: [id])
+  isFeatured  Boolean  @default(false) @map("is_featured")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  variants ProductVariant[]
+  images   ProductImage[]
+
+  @@index([categoryId])
+  @@index([isFeatured])
+  @@map("products")
+}
+
+// Variants model concrete purchasable SKUs (switch type, color, size, etc.)
+// attributes is a free-form Json bag so new variant dimensions don't require migrations.
+model ProductVariant {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku       String   @unique
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  costPrice Decimal  @map("cost_price") @db.Decimal(10, 2) // ADMIN-only field, never serialized to public API
+  stock     Int      @default(0)
+  reservedStock Int  @default(0) @map("reserved_stock") // units held by PENDING_PAYMENT orders; available = stock - reservedStock
+  attributes Json    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String? @map("alt_text")
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  IN_PREPARATION
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum CancelReason {
+  EXPIRED_HOLD
+  PAYMENT_DECLINED
+  ADMIN_CANCELLED
+}
+
+model Order {
+  id              String        @id @default(uuid())
+  userId          String?       @map("user_id")
+  user            User?         @relation(fields: [userId], references: [id])
+  status          OrderStatus   @default(PENDING_PAYMENT)
+  totalAmount     Decimal       @map("total_amount") @db.Decimal(10, 2)
+  customerName    String        @map("customer_name")
+  customerEmail   String        @map("customer_email")
+  customerPhone   String        @map("customer_phone")
+  shippingAddress String        @map("shipping_address")
+  cancelReason    CancelReason? @map("cancel_reason")
+  paidAt          DateTime?     @map("paid_at")
+  cancelledAt     DateTime?     @map("cancelled_at")
+  trackingNumber  String?       @map("tracking_number")
+  courier         String?
+  items           OrderItem[]
+  payment         Payment?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([userId])
+  @@map("orders")
+}
+
+// price is the unit price frozen at purchase time — OrderItem must never re-read ProductVariant.price later.
+model OrderItem {
+  id               String         @id @default(uuid())
+  orderId          String         @map("order_id")
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productVariantId String         @map("product_variant_id")
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  quantity         Int
+  price            Decimal        @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productVariantId])
+  @@map("order_items")
+}
+
+// Separate from Order: the gateway's charge lifecycle (retries, refunds, raw payload)
+// is distinct from our own order state machine.
+model Payment {
+  id               String   @id @default(uuid())
+  orderId          String   @unique @map("order_id")
+  order            Order    @relation(fields: [orderId], references: [id])
+  provider         String   @default("culqi")
+  providerChargeId String?  @map("provider_charge_id")
+  status           String
+  amount           Decimal  @db.Decimal(10, 2)
+  rawResponse      Json?    @map("raw_response")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("payments")
+}
