@@ -1,0 +1,103 @@
+# Render Blueprint — deploys the API, the stock-hold worker, Postgres, and Redis together from
+# this one file, instead of configuring four resources by hand in the dashboard.
+#
+# One-time manual steps after applying this blueprint (see the vars marked `sync: false` below):
+#   1. flashkings-api needs CULQI_SECRET_KEY, RESEND_API_KEY (once you have one) filled in.
+#   2. Once the frontend is deployed (Vercel), come back and set COOKIE_DOMAIN, CORS_ORIGIN,
+#      and FRONTEND_URL on flashkings-api to its real URL — Render redeploys automatically.
+#
+# JWT_ACCESS_SECRET/JWT_REFRESH_SECRET use generateValue: true — Render generates and stores
+# these itself; nothing to fill in, and they're never written into this file.
+
+databases:
+  - name: flashkings-postgres
+    region: oregon
+
+services:
+  # Render's current name for a Redis-compatible store — "redis" is a deprecated alias for this.
+  # Stock-hold expiry timers (BullMQ) and rate-limit counters live here, nothing durable, so the
+  # default (smallest) plan is fine to start.
+  - name: flashkings-redis
+    type: keyvalue
+    region: oregon
+    # 0.0.0.0/0: flashkings-api and flashkings-worker reach this over Render's private network
+    # regardless, but ipAllowList is a required field on the blueprint — tighten this from the
+    # dashboard later if you ever need to reach it from outside Render.
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow-all
+
+  - name: flashkings-api
+    type: web
+    runtime: node
+    region: oregon
+    buildCommand: bun install && bun run build
+    startCommand: bun run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flashkings-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flashkings-redis
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: STOCK_HOLD_MINUTES
+        value: "15"
+      - key: PAYMENT_GATEWAY
+        value: culqi
+      - key: CULQI_PUBLIC_KEY
+        value: pk_test_Xn6LmPWINJNMzj7R
+      - key: CULQI_SECRET_KEY
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: console
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "Flashkings <pedidos@flashkings.pe>"
+      - key: WHATSAPP_BUSINESS_PHONE
+        value: "51927439841"
+      # Fill these in once the frontend has a real Vercel URL — see the note at the top of this file.
+      - key: COOKIE_DOMAIN
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+  # Runs src/worker.ts (compiled) — the BullMQ worker that expires stock holds after
+  # STOCK_HOLD_MINUTES. Must run as its own always-on process, separate from the web service:
+  # see the comment on `worker:dev` in package.json for why this can't share a process with the API.
+  - name: flashkings-worker
+    type: worker
+    runtime: node
+    region: oregon
+    buildCommand: bun install && bun run build
+    startCommand: bun run start:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flashkings-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flashkings-redis
+          property: connectionString
+      - key: STOCK_HOLD_MINUTES
+        value: "15"
