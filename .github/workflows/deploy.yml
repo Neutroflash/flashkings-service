@@ -12,26 +12,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: npm
+          bun-version: latest
 
-      - run: npm ci
+      - run: bun install --frozen-lockfile
 
       # Only generates the Prisma Client's types from schema.prisma — does not need a live
       # database connection, so no Postgres service container is needed for this job.
       - name: Generate Prisma Client
-        run: npx prisma generate
+        run: bunx prisma generate
 
       - name: Type-check
-        run: npx tsc --noEmit -p tsconfig.json
+        run: bunx tsc --noEmit -p tsconfig.json
 
       - name: Lint
-        run: npm run lint
+        run: bun run lint
 
       - name: Build
-        run: npm run build
+        run: bun run build
 
   # Deploy is intentionally left as a manual/documented step, not automated here: Railway/Render
   # both offer "deploy on push to main" via their own GitHub integration (connect the repo in
