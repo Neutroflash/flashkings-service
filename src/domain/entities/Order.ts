@@ -1,4 +1,5 @@
 import { ProductVariant } from "./ProductVariant";
+import { Payment } from "./Payment";
 
 export type OrderStatus = "PENDING_PAYMENT" | "PAID" | "IN_PREPARATION" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 export type CancelReason = "EXPIRED_HOLD" | "PAYMENT_DECLINED" | "ADMIN_CANCELLED";
@@ -26,6 +27,7 @@ export interface Order {
   cancelledAt: Date | null;
   trackingNumber: string | null;
   courier: string | null;
+  payment?: Payment | null;
   items: OrderItem[];
   createdAt: Date;
   updatedAt: Date;
@@ -45,6 +47,13 @@ export interface PublicOrderItem {
   productVariant?: { id: string; sku: string; name: string };
 }
 
+/** No raw provider payload — only what's useful for the customer to see on their own confirmation page. */
+export interface PublicPayment {
+  provider: string;
+  providerChargeId: string | null;
+  status: string;
+}
+
 export interface PublicOrder {
   id: string;
   status: OrderStatus;
@@ -58,6 +67,7 @@ export interface PublicOrder {
   cancelledAt: Date | null;
   trackingNumber: string | null;
   courier: string | null;
+  payment?: PublicPayment | null;
   createdAt: Date;
   items: PublicOrderItem[];
 }
@@ -81,6 +91,9 @@ export function toPublicOrder(order: Order): PublicOrder {
     cancelledAt: order.cancelledAt,
     trackingNumber: order.trackingNumber,
     courier: order.courier,
+    payment: order.payment
+      ? { provider: order.payment.provider, providerChargeId: order.payment.providerChargeId, status: order.payment.status }
+      : null,
     createdAt: order.createdAt,
     items: order.items.map((item) => ({
       id: item.id,

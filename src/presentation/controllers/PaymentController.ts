@@ -2,16 +2,24 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { ProcessPaymentUseCase } from "../../application/payments/ProcessPaymentUseCase";
 import { HandleCulqiWebhookUseCase } from "../../application/payments/HandleCulqiWebhookUseCase";
+import { SubmitManualPaymentUseCase } from "../../application/payments/SubmitManualPaymentUseCase";
 
 const chargeSchema = z.object({
   orderId: z.string().uuid(),
   sourceId: z.string().min(1),
 });
 
+const submitManualSchema = z.object({
+  orderId: z.string().uuid(),
+  method: z.enum(["yape", "plin"]),
+  operationNumber: z.string().trim().min(4, "Número de operación inválido").max(30),
+});
+
 export class PaymentController {
   constructor(
     private readonly processPaymentUseCase: ProcessPaymentUseCase,
     private readonly handleCulqiWebhookUseCase: HandleCulqiWebhookUseCase,
+    private readonly submitManualPaymentUseCase: SubmitManualPaymentUseCase,
   ) {}
 
   // Synchronous fast-path (card payments). Public: guest checkout has no session to authenticate.
@@ -27,5 +35,13 @@ export class PaymentController {
     const signatureHeader = req.header("X-Culqi-Signature"); // placeholder header name — confirm against live Culqi docs
     await this.handleCulqiWebhookUseCase.execute(req.body as Buffer, signatureHeader);
     res.status(200).json({ received: true });
+  };
+
+  // Public: guest checkout has no session to authenticate against. Does not mark the order
+  // PAID — only an ADMIN confirming from the dashboard does that (see AdminOrderController).
+  submitManual = async (req: Request, res: Response): Promise<void> => {
+    const input = submitManualSchema.parse(req.body);
+    const order = await this.submitManualPaymentUseCase.execute(input);
+    res.status(200).json({ order });
   };
 }

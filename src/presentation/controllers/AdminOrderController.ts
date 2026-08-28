@@ -3,6 +3,8 @@ import { z } from "zod";
 import { ListOrdersUseCase } from "../../application/orders/ListOrdersUseCase";
 import { UpdateOrderStatusUseCase } from "../../application/orders/UpdateOrderStatusUseCase";
 import { GetOrderByIdUseCase } from "../../application/orders/GetOrderByIdUseCase";
+import { ConfirmManualPaymentUseCase } from "../../application/payments/ConfirmManualPaymentUseCase";
+import { RejectManualPaymentUseCase } from "../../application/payments/RejectManualPaymentUseCase";
 
 const ORDER_STATUSES = ["PENDING_PAYMENT", "PAID", "IN_PREPARATION", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
 
@@ -26,6 +28,8 @@ export class AdminOrderController {
     private readonly listOrdersUseCase: ListOrdersUseCase,
     private readonly updateOrderStatusUseCase: UpdateOrderStatusUseCase,
     private readonly getOrderByIdUseCase: GetOrderByIdUseCase,
+    private readonly confirmManualPaymentUseCase: ConfirmManualPaymentUseCase,
+    private readonly rejectManualPaymentUseCase: RejectManualPaymentUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -45,6 +49,16 @@ export class AdminOrderController {
       trackingNumber: input.trackingNumber,
       courier: input.courier,
     });
+    res.status(200).json({ order });
+  };
+
+  confirmPayment = async (req: Request, res: Response): Promise<void> => {
+    const order = await this.confirmManualPaymentUseCase.execute(req.params.id);
+    res.status(200).json({ order });
+  };
+
+  rejectPayment = async (req: Request, res: Response): Promise<void> => {
+    const order = await this.rejectManualPaymentUseCase.execute(req.params.id);
     res.status(200).json({ order });
   };
 }

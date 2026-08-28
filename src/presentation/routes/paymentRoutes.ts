@@ -7,6 +7,7 @@ import { stockHoldScheduler } from "../../infrastructure/queue/stockHoldSchedule
 import { eventBus } from "../../infrastructure/events/NodeEventBus";
 import { ProcessPaymentUseCase } from "../../application/payments/ProcessPaymentUseCase";
 import { HandleCulqiWebhookUseCase } from "../../application/payments/HandleCulqiWebhookUseCase";
+import { SubmitManualPaymentUseCase } from "../../application/payments/SubmitManualPaymentUseCase";
 import { PaymentController } from "../controllers/PaymentController";
 import { asyncHandler } from "../middlewares/asyncHandler";
 
@@ -15,12 +16,17 @@ const paymentRepository = new PrismaPaymentRepository(prisma);
 const paymentController = new PaymentController(
   new ProcessPaymentUseCase(orderRepository, paymentRepository, paymentGateway, stockHoldScheduler, eventBus),
   new HandleCulqiWebhookUseCase(orderRepository, paymentGateway, stockHoldScheduler, eventBus),
+  new SubmitManualPaymentUseCase(orderRepository, paymentRepository, stockHoldScheduler),
 );
 
 export const paymentRoutes = Router();
 
 // Public: guest checkout has no session to authenticate against.
 paymentRoutes.post("/charge", asyncHandler(paymentController.charge));
+
+// Public: manual Yape/Plin — customer self-reports the operation number, stays PENDING_PAYMENT
+// until an ADMIN confirms it (see adminOrderRoutes.ts).
+paymentRoutes.post("/manual", asyncHandler(paymentController.submitManual));
 
 // Public, no cookie auth — authenticity is the signature check inside the use case.
 // express.raw() here (not the global express.json() from app.ts, which explicitly skips
