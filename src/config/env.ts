@@ -25,6 +25,9 @@ export const env = {
   isProduction: process.env.NODE_ENV === "production",
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
   stockHoldMinutes: Number(process.env.STOCK_HOLD_MINUTES ?? 15),
+  // For free-tier deploys with no separate always-on worker service — runs the stock-hold
+  // expiry worker inside this same process instead. See the comment in server.ts for the tradeoff.
+  runWorkerInProcess: process.env.RUN_WORKER_IN_PROCESS === "true",
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   email: {
     provider: (process.env.EMAIL_PROVIDER ?? "console") as "console" | "resend",
