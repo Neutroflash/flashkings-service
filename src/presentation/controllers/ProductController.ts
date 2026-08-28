@@ -3,6 +3,7 @@ import { z } from "zod";
 import { GetProductsUseCase } from "../../application/products/GetProductsUseCase";
 import { GetProductBySlugUseCase } from "../../application/products/GetProductBySlugUseCase";
 import { CreateProductUseCase } from "../../application/products/CreateProductUseCase";
+import { UpdateProductUseCase } from "../../application/products/UpdateProductUseCase";
 import { UpdateProductVariantUseCase } from "../../application/products/UpdateProductVariantUseCase";
 import { AddProductImageUseCase } from "../../application/products/AddProductImageUseCase";
 import { UpdateProductImageUseCase } from "../../application/products/UpdateProductImageUseCase";
@@ -44,6 +45,15 @@ const createProductSchema = z.object({
   images: z.array(imageSchema).optional(),
 });
 
+// slug is deliberately absent — see the comment on UpdateProductData in the domain layer.
+const updateProductSchema = z.object({
+  name: z.string().min(2).optional(),
+  description: z.string().optional(),
+  brand: z.string().min(1).optional(),
+  categoryId: z.string().uuid().optional(),
+  isFeatured: z.boolean().optional(),
+});
+
 const updateVariantSchema = z.object({
   price: z.number().positive().optional(),
   costPrice: z.number().nonnegative().optional(),
@@ -70,6 +80,7 @@ export class ProductController {
     private readonly getProductsUseCase: GetProductsUseCase,
     private readonly getProductBySlugUseCase: GetProductBySlugUseCase,
     private readonly createProductUseCase: CreateProductUseCase,
+    private readonly updateProductUseCase: UpdateProductUseCase,
     private readonly updateProductVariantUseCase: UpdateProductVariantUseCase,
     private readonly addProductImageUseCase: AddProductImageUseCase,
     private readonly updateProductImageUseCase: UpdateProductImageUseCase,
@@ -103,6 +114,13 @@ export class ProductController {
     const input = createProductSchema.parse(req.body);
     const product = await this.createProductUseCase.execute(input);
     res.status(201).json({ product });
+  };
+
+  // ADMIN-only. slug is never accepted here — see updateProductSchema.
+  updateProduct = async (req: Request, res: Response): Promise<void> => {
+    const input = updateProductSchema.parse(req.body);
+    const product = await this.updateProductUseCase.execute(req.params.productId, input);
+    res.status(200).json({ product });
   };
 
   // ADMIN-only. reservedStock is never accepted here — it's system-managed by the order flow.

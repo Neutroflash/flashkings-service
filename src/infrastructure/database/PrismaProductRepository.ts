@@ -5,6 +5,7 @@ import {
   IProductRepository,
   PaginatedResult,
   ProductFilters,
+  UpdateProductData,
   UpdateProductImageData,
   UpdateProductVariantData,
 } from "../../domain/repositories/IProductRepository";
@@ -133,6 +134,25 @@ export class PrismaProductRepository implements IProductRepository {
       include: productInclude,
     });
     return toDomain(product);
+  }
+
+  async updateProduct(productId: string, data: UpdateProductData): Promise<Product> {
+    try {
+      const product = await this.prisma.product.update({
+        where: { id: productId },
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.description !== undefined ? { description: data.description } : {}),
+          ...(data.brand !== undefined ? { brand: data.brand } : {}),
+          ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
+          ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {}),
+        },
+        include: productInclude,
+      });
+      return toDomain(product);
+    } catch {
+      throw new NotFoundError("Producto no encontrado");
+    }
   }
 
   async updateVariant(variantId: string, data: UpdateProductVariantData): Promise<ProductVariant> {

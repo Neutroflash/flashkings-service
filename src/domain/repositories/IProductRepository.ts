@@ -49,6 +49,18 @@ export interface UpdateProductVariantData {
   stock?: number;
 }
 
+// slug is deliberately excluded: it's the product's public URL (/producto/[slug]) and may
+// already be indexed by search engines or shared/bookmarked — renaming the product must not
+// break it. If a real rename-with-redirect need comes up later, that's a distinct feature
+// (old-slug -> new-slug redirect table), not a plain field edit.
+export interface UpdateProductData {
+  name?: string;
+  description?: string;
+  brand?: string;
+  categoryId?: string;
+  isFeatured?: boolean;
+}
+
 export interface AddProductImageInput {
   productId: string;
   /** Omit/null = shared image (fallback for any variant with none of its own). */
@@ -70,6 +82,8 @@ export interface IProductRepository {
   findBySlug(slug: string): Promise<Product | null>;
   findById(id: string): Promise<Product | null>;
   create(data: CreateProductData): Promise<Product>;
+  /** ADMIN-only. slug is never editable here — see UpdateProductData. */
+  updateProduct(productId: string, data: UpdateProductData): Promise<Product>;
   /** ADMIN-only. reservedStock is intentionally not editable — it's system-managed by the order flow. */
   updateVariant(variantId: string, data: UpdateProductVariantData): Promise<ProductVariant>;
   findVariantById(variantId: string): Promise<ProductVariant | null>;

@@ -5,6 +5,7 @@ import { PrismaCategoryRepository } from "../../infrastructure/database/PrismaCa
 import { GetProductsUseCase } from "../../application/products/GetProductsUseCase";
 import { GetProductBySlugUseCase } from "../../application/products/GetProductBySlugUseCase";
 import { CreateProductUseCase } from "../../application/products/CreateProductUseCase";
+import { UpdateProductUseCase } from "../../application/products/UpdateProductUseCase";
 import { UpdateProductVariantUseCase } from "../../application/products/UpdateProductVariantUseCase";
 import { AddProductImageUseCase } from "../../application/products/AddProductImageUseCase";
 import { UpdateProductImageUseCase } from "../../application/products/UpdateProductImageUseCase";
@@ -21,6 +22,7 @@ const productController = new ProductController(
   new GetProductsUseCase(productRepository),
   new GetProductBySlugUseCase(productRepository),
   new CreateProductUseCase(productRepository, categoryRepository),
+  new UpdateProductUseCase(productRepository, categoryRepository),
   new UpdateProductVariantUseCase(productRepository),
   new AddProductImageUseCase(productRepository),
   new UpdateProductImageUseCase(productRepository),
@@ -36,6 +38,12 @@ productRoutes.get("/:slug", catalogLimiter, attachUserIfPresent, asyncHandler(pr
 
 // ADMIN-only
 productRoutes.post("/", authenticateJWT, requireRole("ADMIN"), asyncHandler(productController.create));
+productRoutes.patch(
+  "/:productId",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.updateProduct),
+);
 productRoutes.patch(
   "/variants/:id",
   authenticateJWT,
