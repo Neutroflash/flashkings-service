@@ -2,18 +2,9 @@ import { CreateProductData, IProductRepository } from "../../domain/repositories
 import { ICategoryRepository } from "../../domain/repositories/ICategoryRepository";
 import { Product } from "../../domain/entities/Product";
 import { ConflictError, NotFoundError } from "../../shared/errors/AppError";
+import { slugify } from "../../shared/slugify";
 
 export type CreateProductInput = Omit<CreateProductData, "slug">;
-
-function slugify(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 // This use case is ADMIN-only; enforcement happens in requireRole middleware
 // before the controller ever calls execute().

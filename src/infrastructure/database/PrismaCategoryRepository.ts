@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { ICategoryRepository } from "../../domain/repositories/ICategoryRepository";
+import { CreateCategoryData, ICategoryRepository } from "../../domain/repositories/ICategoryRepository";
 import { Category } from "../../domain/entities/Category";
 
 export class PrismaCategoryRepository implements ICategoryRepository {
@@ -15,5 +15,9 @@ export class PrismaCategoryRepository implements ICategoryRepository {
 
   async findById(id: string): Promise<Category | null> {
     return this.prisma.category.findUnique({ where: { id } });
+  }
+
+  async create(data: CreateCategoryData): Promise<Category> {
+    return this.prisma.category.create({ data });
   }
 }
