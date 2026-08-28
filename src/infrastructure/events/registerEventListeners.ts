@@ -1,6 +1,6 @@
 import { eventBus } from "./NodeEventBus";
 import { emailService } from "../email/emailService";
-import { OrderPaidEvent, OrderShippedEvent } from "../../domain/events/OrderEvents";
+import { ComplaintCreatedEvent, OrderPaidEvent, OrderShippedEvent } from "../../domain/events/OrderEvents";
 import { logger } from "../logging/logger";
 
 /** Wires notification side-effects to domain events. Called once at server startup (server.ts) —
@@ -14,5 +14,10 @@ export function registerEventListeners(): void {
   eventBus.subscribe<OrderShippedEvent>("order.shipped", async (event) => {
     await emailService.sendOrderShippedEmail(event.order, event.trackingNumber, event.courier);
     logger.info({ orderId: event.order.id }, "OrderShippedEmail sent");
+  });
+
+  eventBus.subscribe<ComplaintCreatedEvent>("complaint.created", async (event) => {
+    await emailService.sendComplaintReceivedEmail(event.complaint);
+    logger.info({ complaintId: event.complaint.id, correlativo: event.complaint.correlativo }, "ComplaintReceivedEmail sent");
   });
 }

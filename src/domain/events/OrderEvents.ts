@@ -1,4 +1,5 @@
 import { Order } from "../entities/Order";
+import { Complaint } from "../entities/Complaint";
 
 export interface OrderPaidEvent {
   type: "order.paid";
@@ -12,4 +13,9 @@ export interface OrderShippedEvent {
   courier: string | null;
 }
 
-export type DomainEvent = OrderPaidEvent | OrderShippedEvent;
+export interface ComplaintCreatedEvent {
+  type: "complaint.created";
+  complaint: Complaint;
+}
+
+export type DomainEvent = OrderPaidEvent | OrderShippedEvent | ComplaintCreatedEvent;

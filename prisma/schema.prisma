@@ -64,18 +64,18 @@ model Product {
 // Variants model concrete purchasable SKUs (switch type, color, size, etc.)
 // attributes is a free-form Json bag so new variant dimensions don't require migrations.
 model ProductVariant {
-  id        String   @id @default(uuid())
-  productId String   @map("product_id")
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sku       String   @unique
-  name      String
-  price     Decimal  @db.Decimal(10, 2)
-  costPrice Decimal  @map("cost_price") @db.Decimal(10, 2) // ADMIN-only field, never serialized to public API
-  stock     Int      @default(0)
-  reservedStock Int  @default(0) @map("reserved_stock") // units held by PENDING_PAYMENT orders; available = stock - reservedStock
-  attributes Json    @default("{}")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku           String   @unique
+  name          String
+  price         Decimal  @db.Decimal(10, 2)
+  costPrice     Decimal  @map("cost_price") @db.Decimal(10, 2) // ADMIN-only field, never serialized to public API
+  stock         Int      @default(0)
+  reservedStock Int      @default(0) @map("reserved_stock") // units held by PENDING_PAYMENT orders; available = stock - reservedStock
+  attributes    Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   orderItems OrderItem[]
   images     ProductImage[]
@@ -174,4 +174,37 @@ model Payment {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("payments")
+}
+
+enum ComplaintType {
+  RECLAMO
+  QUEJA
+}
+
+// Libro de Reclamaciones Virtual, required for all e-commerce in Peru (D.S. 011-2011-PCM /
+// Ley 29571). Anonymous/public submission — a consumer filing a complaint has no account.
+// correlativo is the "numeración correlativa" the regulation requires on each sheet, separate
+// from the UUID primary key (which is just our internal reference).
+model Complaint {
+  id               String        @id @default(uuid())
+  correlativo      Int           @default(autoincrement())
+  type             ComplaintType
+  fullName         String        @map("full_name")
+  documentType     String        @map("document_type")
+  documentNumber   String        @map("document_number")
+  address          String
+  phone            String?
+  email            String
+  isMinor          Boolean       @default(false) @map("is_minor")
+  guardianName     String?       @map("guardian_name")
+  goodType         String        @map("good_type")
+  goodDescription  String        @map("good_description")
+  claimedAmount    Decimal?      @map("claimed_amount") @db.Decimal(10, 2)
+  detail           String
+  request          String
+  providerResponse String?       @map("provider_response")
+  respondedAt      DateTime?     @map("responded_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  @@map("complaints")
 }
