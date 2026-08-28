@@ -136,6 +136,7 @@ model Order {
   courier         String?
   items           OrderItem[]
   payment         Payment?
+  invoice         Invoice?
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -207,4 +208,51 @@ model Complaint {
   createdAt        DateTime      @default(now()) @map("created_at")
 
   @@map("complaints")
+}
+
+enum InvoiceType {
+  BOLETA
+  FACTURA
+}
+
+enum InvoiceStatus {
+  ISSUED
+  FAILED
+  VOID
+}
+
+// Series/number counter per InvoiceType, kept as its own row (not a Prisma autoincrement column)
+// because SUNAT requires each comprobante type to have its own independent correlative sequence
+// (B001-1, B001-2... for boletas; F001-1, F001-2... for facturas) — a single shared autoincrement
+// column can't produce that. Updated atomically via upsert+increment inside the same transaction
+// that creates the Invoice — see PrismaInvoiceRepository.
+model InvoiceCounter {
+  type       InvoiceType @id
+  lastNumber Int         @default(0) @map("last_number")
+
+  @@map("invoice_counters")
+}
+
+// Comprobante de pago electrónico (SUNAT). NOT auto-issued on payment: while the business isn't
+// yet registered as an "emisor electrónico" with SUNAT, this is a manual ADMIN action on an
+// already-paid order (see IssueInvoiceUseCase). The real integration (a PSE like Nubefact, via
+// IInvoicingGateway) isn't connected yet — see FakeInvoicingGateway and INVOICING_PROVIDER.
+model Invoice {
+  id               String        @id @default(uuid())
+  orderId          String        @unique @map("order_id")
+  order            Order         @relation(fields: [orderId], references: [id])
+  type             InvoiceType
+  status           InvoiceStatus
+  series           String
+  number           Int
+  documentType     String        @map("document_type")
+  documentNumber   String        @map("document_number")
+  businessName     String?       @map("business_name")
+  pdfUrl           String?       @map("pdf_url")
+  xmlUrl           String?       @map("xml_url")
+  providerResponse Json?         @map("provider_response")
+  issuedAt         DateTime?     @map("issued_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  @@map("invoices")
 }

@@ -11,6 +11,7 @@ import { ConflictError, InsufficientStockError, NotFoundError } from "../../shar
 const orderInclude = {
   items: { include: { productVariant: true } },
   payment: true,
+  invoice: true,
 } satisfies Prisma.OrderInclude;
 
 type OrderWithRelations = Prisma.OrderGetPayload<{ include: typeof orderInclude }>;
@@ -31,6 +32,7 @@ function toDomain(order: OrderWithRelations): Order {
     trackingNumber: order.trackingNumber,
     courier: order.courier,
     payment: order.payment ? { ...order.payment, amount: order.payment.amount.toNumber() } : null,
+    invoice: order.invoice,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     items: order.items.map((item) => ({

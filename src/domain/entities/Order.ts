@@ -1,5 +1,6 @@
 import { ProductVariant } from "./ProductVariant";
 import { Payment } from "./Payment";
+import { Invoice } from "./Invoice";
 
 export type OrderStatus = "PENDING_PAYMENT" | "PAID" | "IN_PREPARATION" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 export type CancelReason = "EXPIRED_HOLD" | "PAYMENT_DECLINED" | "ADMIN_CANCELLED";
@@ -28,6 +29,7 @@ export interface Order {
   trackingNumber: string | null;
   courier: string | null;
   payment?: Payment | null;
+  invoice?: Invoice | null;
   items: OrderItem[];
   createdAt: Date;
   updatedAt: Date;

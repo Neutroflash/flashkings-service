@@ -5,6 +5,7 @@ import { UpdateOrderStatusUseCase } from "../../application/orders/UpdateOrderSt
 import { GetOrderByIdUseCase } from "../../application/orders/GetOrderByIdUseCase";
 import { ConfirmManualPaymentUseCase } from "../../application/payments/ConfirmManualPaymentUseCase";
 import { RejectManualPaymentUseCase } from "../../application/payments/RejectManualPaymentUseCase";
+import { IssueInvoiceUseCase } from "../../application/invoicing/IssueInvoiceUseCase";
 
 const ORDER_STATUSES = ["PENDING_PAYMENT", "PAID", "IN_PREPARATION", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
 
@@ -23,6 +24,19 @@ const updateStatusSchema = z.object({
   courier: z.string().min(1).optional(),
 });
 
+const issueInvoiceSchema = z
+  .object({
+    type: z.enum(["BOLETA", "FACTURA"]),
+    documentType: z.enum(["DNI", "RUC", "CE", "PASAPORTE"]),
+    documentNumber: z.string().trim().min(4).max(20),
+    businessName: z.string().trim().min(2).optional(),
+  })
+  // SUNAT requires the buyer's razón social on a factura.
+  .refine((data) => data.type !== "FACTURA" || !!data.businessName, {
+    message: "businessName es requerido para facturas",
+    path: ["businessName"],
+  });
+
 export class AdminOrderController {
   constructor(
     private readonly listOrdersUseCase: ListOrdersUseCase,
@@ -30,6 +44,7 @@ export class AdminOrderController {
     private readonly getOrderByIdUseCase: GetOrderByIdUseCase,
     private readonly confirmManualPaymentUseCase: ConfirmManualPaymentUseCase,
     private readonly rejectManualPaymentUseCase: RejectManualPaymentUseCase,
+    private readonly issueInvoiceUseCase: IssueInvoiceUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -60,5 +75,11 @@ export class AdminOrderController {
   rejectPayment = async (req: Request, res: Response): Promise<void> => {
     const order = await this.rejectManualPaymentUseCase.execute(req.params.id);
     res.status(200).json({ order });
+  };
+
+  issueInvoice = async (req: Request, res: Response): Promise<void> => {
+    const input = issueInvoiceSchema.parse(req.body);
+    const invoice = await this.issueInvoiceUseCase.execute({ orderId: req.params.id, ...input });
+    res.status(201).json({ invoice });
   };
 }
