@@ -7,8 +7,10 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "worker:dev": "tsx watch src/worker.ts",
+    "postinstall": "prisma generate",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "start": "prisma migrate deploy && node dist/server.js",
+    "start:worker": "node dist/worker.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
