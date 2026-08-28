@@ -1,5 +1,5 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import {
+  ChargeStatusResult,
   CreateChargeInput,
   CreateChargeResult,
   IPaymentGateway,
@@ -14,13 +14,28 @@ interface CulqiChargeResponse {
   outcome?: { type?: string };
   merchant_message?: string;
   object?: string;
+  metadata?: { orderId?: string };
   [key: string]: unknown;
 }
 
 /**
  * Coded against Culqi's documented REST charge shape. NOT verified end-to-end without live
- * sandbox credentials — before go-live, confirm `verifyWebhookSignature`'s header name/algorithm
- * against the current Culqi dashboard/docs; this HMAC-SHA256-over-raw-body scheme is a placeholder.
+ * sandbox credentials.
+ *
+ * Culqi does not publish a signature/HMAC scheme for webhook requests (checked
+ * docs.culqi.com/es/documentacion/pagos-online/webhooks/ and apidocs.culqi.com — neither
+ * documents a header or algorithm to verify a webhook's authenticity), so a webhook POST body
+ * must be treated as fully spoofable input. Instead of guessing an unverifiable scheme, this
+ * gateway never trusts a webhook body directly: fetchChargeStatus re-queries Culqi's own API
+ * with our secret key for the authoritative status/orderId of a given chargeId. An attacker can
+ * POST anything to our webhook endpoint, but they cannot make Culqi's own API lie about the
+ * state of a real charge. See HandleCulqiWebhookUseCase for how the two are combined.
+ *
+ * If you enable "Activar autenticación" on the webhook in the Culqi panel when configuring the
+ * real production webhook, that adds HTTP Basic Auth on the incoming request as a second,
+ * independent layer — worth turning on, but not a replacement for the re-fetch above, since it
+ * only proves the request came from someone who knows the shared credential, not that its body
+ * is truthful.
  */
 export class CulqiPaymentGateway implements IPaymentGateway {
   async createCharge(input: CreateChargeInput): Promise<CreateChargeResult> {
@@ -50,15 +65,19 @@ export class CulqiPaymentGateway implements IPaymentGateway {
     return { providerChargeId: raw.id, status: "succeeded", raw };
   }
 
-  verifyWebhookSignature(rawBody: Buffer, signatureHeader: string | undefined): boolean {
-    if (!signatureHeader || !env.payment.culqiWebhookSecret) return false;
+  async fetchChargeStatus(chargeId: string): Promise<ChargeStatusResult> {
+    const response = await fetch(`${CULQI_CHARGES_URL}/${chargeId}`, {
+      headers: { Authorization: `Bearer ${env.payment.culqiSecretKey}` },
+    });
 
-    const expected = createHmac("sha256", env.payment.culqiWebhookSecret).update(rawBody).digest("hex");
-    const expectedBuffer = Buffer.from(expected, "utf-8");
-    const receivedBuffer = Buffer.from(signatureHeader, "utf-8");
+    // Charge doesn't exist, isn't ours, or the API errored — never treat as a success.
+    if (!response.ok) return { status: "failed", orderId: null };
 
-    if (expectedBuffer.length !== receivedBuffer.length) return false;
-    return timingSafeEqual(expectedBuffer, receivedBuffer);
+    const raw = (await response.json()) as CulqiChargeResponse;
+    const outcomeType = raw.outcome?.type;
+    const status = outcomeType === "venta_exitosa" ? "succeeded" : outcomeType ? "failed" : "pending";
+
+    return { status, orderId: raw.metadata?.orderId ?? null };
   }
 
   parseWebhookEvent(rawBody: Buffer): PaymentWebhookEvent {

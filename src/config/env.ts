@@ -36,6 +36,5 @@ export const env = {
     gateway: (process.env.PAYMENT_GATEWAY ?? "fake") as "fake" | "culqi",
     culqiPublicKey: process.env.CULQI_PUBLIC_KEY ?? "",
     culqiSecretKey: process.env.CULQI_SECRET_KEY ?? "",
-    culqiWebhookSecret: process.env.CULQI_WEBHOOK_SECRET ?? "",
   },
 };

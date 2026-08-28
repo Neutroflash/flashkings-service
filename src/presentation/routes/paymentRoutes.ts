@@ -28,7 +28,7 @@ paymentRoutes.post("/charge", asyncHandler(paymentController.charge));
 // until an ADMIN confirms it (see adminOrderRoutes.ts).
 paymentRoutes.post("/manual", asyncHandler(paymentController.submitManual));
 
-// Public, no cookie auth — authenticity is the signature check inside the use case.
-// express.raw() here (not the global express.json() from app.ts, which explicitly skips
-// this path) preserves the exact byte stream the gateway signed.
+// Public, no cookie auth — the body is untrusted input, re-verified against Culqi directly
+// (see HandleCulqiWebhookUseCase). express.raw() here (not the global express.json() from
+// app.ts, which explicitly skips this path) is what makes req.body a Buffer for that use case.
 paymentRoutes.post("/webhook", raw({ type: "*/*" }), asyncHandler(paymentController.webhook));

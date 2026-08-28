@@ -29,11 +29,11 @@ export class PaymentController {
     res.status(200).json({ order: result.order, status: result.status });
   };
 
-  // No cookie auth — authenticity comes from the signature check inside the use case.
+  // No cookie auth — the request body itself is untrusted (see HandleCulqiWebhookUseCase, which
+  // re-verifies the charge directly against Culqi before acting on it).
   // req.body is a raw Buffer here (see express.raw() applied only to this route in the router).
   webhook = async (req: Request, res: Response): Promise<void> => {
-    const signatureHeader = req.header("X-Culqi-Signature"); // placeholder header name — confirm against live Culqi docs
-    await this.handleCulqiWebhookUseCase.execute(req.body as Buffer, signatureHeader);
+    await this.handleCulqiWebhookUseCase.execute(req.body as Buffer);
     res.status(200).json({ received: true });
   };
 
