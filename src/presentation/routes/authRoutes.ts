@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../../infrastructure/database/prisma";
 import { PrismaUserRepository } from "../../infrastructure/database/PrismaUserRepository";
+import { PrismaOrderRepository } from "../../infrastructure/database/PrismaOrderRepository";
 import { RegisterUseCase } from "../../application/auth/RegisterUseCase";
 import { LoginUseCase } from "../../application/auth/LoginUseCase";
 import { RefreshTokenUseCase } from "../../application/auth/RefreshTokenUseCase";
@@ -12,8 +13,9 @@ import { authenticateJWT } from "../middlewares/authenticateJWT";
 import { authLimiter } from "../middlewares/rateLimiter";
 
 const userRepository = new PrismaUserRepository(prisma);
+const orderRepository = new PrismaOrderRepository(prisma);
 const authController = new AuthController(
-  new RegisterUseCase(userRepository),
+  new RegisterUseCase(userRepository, orderRepository),
   new LoginUseCase(userRepository),
   new RefreshTokenUseCase(userRepository),
   new UpdateProfileUseCase(userRepository),

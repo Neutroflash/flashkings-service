@@ -53,4 +53,11 @@ export interface IOrderRepository {
 
   findById(id: string): Promise<Order | null>;
   findMany(filters: OrderFilters): Promise<PaginatedOrders>;
+
+  /**
+   * Retroactively links a customer's past guest orders (userId still null) to their new
+   * account, matched by email — so "create an account after checking out as a guest" surfaces
+   * the order(s) they already placed instead of showing an empty history. See RegisterUseCase.
+   */
+  linkOrdersToUser(email: string, userId: string): Promise<void>;
 }

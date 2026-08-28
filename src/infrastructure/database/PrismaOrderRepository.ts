@@ -241,4 +241,11 @@ export class PrismaOrderRepository implements IOrderRepository {
 
     return { items: rows.map(toDomain), total, page, pageSize };
   }
+
+  async linkOrdersToUser(email: string, userId: string): Promise<void> {
+    await this.prisma.order.updateMany({
+      where: { customerEmail: email, userId: null },
+      data: { userId },
+    });
+  }
 }
