@@ -5,6 +5,10 @@ import { LoginUseCase } from "../../application/auth/LoginUseCase";
 import { RefreshTokenUseCase } from "../../application/auth/RefreshTokenUseCase";
 import { UpdateProfileUseCase } from "../../application/auth/UpdateProfileUseCase";
 import { GetCurrentUserUseCase } from "../../application/auth/GetCurrentUserUseCase";
+import { ForgotPasswordUseCase } from "../../application/auth/ForgotPasswordUseCase";
+import { ResetPasswordUseCase } from "../../application/auth/ResetPasswordUseCase";
+import { VerifyEmailUseCase } from "../../application/auth/VerifyEmailUseCase";
+import { ResendVerificationUseCase } from "../../application/auth/ResendVerificationUseCase";
 import { clearAuthCookies, REFRESH_TOKEN_COOKIE, setAuthCookies } from "../../infrastructure/security/cookies";
 import { UnauthorizedError } from "../../shared/errors/AppError";
 
@@ -25,6 +29,13 @@ const updateProfileSchema = z.object({
   defaultAddress: z.string().trim().min(5).nullable().optional(),
 });
 
+const forgotPasswordSchema = z.object({ email: z.string().email() });
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+});
+const verifyEmailSchema = z.object({ token: z.string().min(1) });
+
 export class AuthController {
   constructor(
     private readonly registerUseCase: RegisterUseCase,
@@ -32,6 +43,10 @@ export class AuthController {
     private readonly refreshTokenUseCase: RefreshTokenUseCase,
     private readonly updateProfileUseCase: UpdateProfileUseCase,
     private readonly getCurrentUserUseCase: GetCurrentUserUseCase,
+    private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
+    private readonly resetPasswordUseCase: ResetPasswordUseCase,
+    private readonly verifyEmailUseCase: VerifyEmailUseCase,
+    private readonly resendVerificationUseCase: ResendVerificationUseCase,
   ) {}
 
   register = async (req: Request, res: Response): Promise<void> => {
@@ -74,5 +89,30 @@ export class AuthController {
     const input = updateProfileSchema.parse(req.body);
     const user = await this.updateProfileUseCase.execute(req.user!.id, input);
     res.status(200).json({ user });
+  };
+
+  // Siempre responde el mismo mensaje exista o no ese correo — ver ForgotPasswordUseCase.
+  forgotPassword = async (req: Request, res: Response): Promise<void> => {
+    const input = forgotPasswordSchema.parse(req.body);
+    await this.forgotPasswordUseCase.execute(input.email);
+    res.status(200).json({ message: "Si el correo existe, enviamos instrucciones para restablecer la contraseña." });
+  };
+
+  resetPassword = async (req: Request, res: Response): Promise<void> => {
+    const input = resetPasswordSchema.parse(req.body);
+    await this.resetPasswordUseCase.execute(input.token, input.password);
+    res.status(200).json({ message: "Contraseña actualizada" });
+  };
+
+  verifyEmail = async (req: Request, res: Response): Promise<void> => {
+    const input = verifyEmailSchema.parse(req.body);
+    await this.verifyEmailUseCase.execute(input.token);
+    res.status(200).json({ message: "Correo verificado" });
+  };
+
+  // req.user es garantizado — authenticateJWT corre antes (ver authRoutes.ts).
+  resendVerification = async (req: Request, res: Response): Promise<void> => {
+    await this.resendVerificationUseCase.execute(req.user!.id);
+    res.status(200).json({ message: "Correo de verificación reenviado" });
   };
 }

@@ -10,6 +10,10 @@ Leyenda: ✅ implementado y probado con tráfico real · ⚠️ implementado per
 |---|---|---|
 | Modelos base (`User`, `Category`, `Product`, `ProductVariant`, `ProductImage`) | ✅ | |
 | Registro/login/refresh/logout con JWT en cookies `HttpOnly` | ✅ | |
+| Recuperación de contraseña (`forgot`/`reset-password`) | ✅ | Portado de saas-erp-pe. Token de un solo uso (32 bytes, solo se persiste el hash SHA-256), 30 min de vigencia. Verificado en vivo: mismo mensaje exista o no el correo (anti-enumeración), token incorrecto rechazado, token reusado rechazado, login con la contraseña vieja falla / con la nueva funciona |
+| Verificación de email, no bloqueante | ✅ | Token de 7 días generado en el mismo registro, envío best-effort (nunca bloquea el registro). Verificado en vivo: token correcto/incorrecto/reusado, `resend-verification` da 409 si ya está verificado |
+| **Bug real encontrado y corregido en el camino** — hashes de tokens expuestos en la respuesta | ✅ (corregido) | `toSafeUser()` solo excluía `passwordHash` con un spread — como Prisma devuelve TODAS las columnas en runtime (el tipo de TS no cambia el objeto real), los hashes de reset/verificación viajaban igual en `POST /auth/register`. Corregido con `select` explícito en `PrismaUserRepository` (mismo patrón `toDomain` que ya usa `PrismaInvoiceRepository`) — encontrado probando el flujo en vivo, nunca llegó a producción |
+| Frontend: `/cuenta/olvide-password`, `/cuenta/restablecer-password`, `/cuenta/verificar-email`, aviso de verificación en `/cuenta` | ✅ | `tsc`/`next build` verificados (las 3 páginas nuevas generan como estáticas, sin el error de `useSearchParams` fuera de `Suspense`). **No verificado en navegador** — sin herramienta de browser disponible en esta sesión |
 | RBAC (`CLIENT`/`ADMIN`) vía middlewares | ✅ | |
 | Sanitización de `costPrice`/stock exacto en respuestas públicas | ✅ | Probado: `GET /api/products` sin auth no expone `costPrice` |
 | CRUD de productos + variantes (crear, editar stock/precio/costo) | ✅ | |

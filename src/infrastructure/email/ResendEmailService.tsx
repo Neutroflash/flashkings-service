@@ -3,11 +3,14 @@ import { render } from "@react-email/render";
 import { IEmailService } from "../../domain/services/IEmailService";
 import { Order } from "../../domain/entities/Order";
 import { Complaint } from "../../domain/entities/Complaint";
+import { User } from "../../domain/entities/User";
 import { env } from "../../config/env";
 import { logger } from "../logging/logger";
 import { OrderConfirmedEmail } from "./templates/OrderConfirmedEmail";
 import { OrderShippedEmail } from "./templates/OrderShippedEmail";
 import { ComplaintReceivedEmail } from "./templates/ComplaintReceivedEmail";
+import { PasswordResetEmail } from "./templates/PasswordResetEmail";
+import { VerifyEmailEmail } from "./templates/VerifyEmailEmail";
 
 export class ResendEmailService implements IEmailService {
   private readonly resend = new Resend(env.email.resendApiKey);
@@ -26,6 +29,16 @@ export class ResendEmailService implements IEmailService {
     const html = await render(<ComplaintReceivedEmail complaint={complaint} />);
     const code = `RC-${String(complaint.correlativo).padStart(6, "0")}`;
     await this.send(complaint.email, `Constancia de tu reclamo — ${code}`, html);
+  }
+
+  async sendPasswordResetEmail(user: User, resetUrl: string): Promise<void> {
+    const html = await render(<PasswordResetEmail user={user} resetUrl={resetUrl} />);
+    await this.send(user.email, "Recupera tu contraseña", html);
+  }
+
+  async sendVerificationEmail(user: User, verifyUrl: string): Promise<void> {
+    const html = await render(<VerifyEmailEmail user={user} verifyUrl={verifyUrl} />);
+    await this.send(user.email, "Confirma tu correo", html);
   }
 
   private async send(to: string, subject: string, html: string): Promise<void> {

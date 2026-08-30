@@ -2,10 +2,13 @@ import { render } from "@react-email/render";
 import { IEmailService } from "../../domain/services/IEmailService";
 import { Order } from "../../domain/entities/Order";
 import { Complaint } from "../../domain/entities/Complaint";
+import { User } from "../../domain/entities/User";
 import { logger } from "../logging/logger";
 import { OrderConfirmedEmail } from "./templates/OrderConfirmedEmail";
 import { OrderShippedEmail } from "./templates/OrderShippedEmail";
 import { ComplaintReceivedEmail } from "./templates/ComplaintReceivedEmail";
+import { PasswordResetEmail } from "./templates/PasswordResetEmail";
+import { VerifyEmailEmail } from "./templates/VerifyEmailEmail";
 
 /** Dev/test fallback when EMAIL_PROVIDER=console (no Resend API key needed) — renders the
  * real template and logs it instead of sending, so the flow is fully exercisable without credentials. */
@@ -33,6 +36,19 @@ export class ConsoleEmailService implements IEmailService {
       { to: complaint.email, complaintId: complaint.id, correlativo: complaint.correlativo },
       "[email:console] ComplaintReceivedEmail",
     );
+    logger.debug({ text });
+  }
+
+  async sendPasswordResetEmail(user: User, resetUrl: string): Promise<void> {
+    const text = await render(<PasswordResetEmail user={user} resetUrl={resetUrl} />, { plainText: true });
+    // A nivel info (no debug): en modo console es la única forma de probar el flujo sin cuenta de Resend real.
+    logger.info({ to: user.email, resetUrl }, "[email:console] PasswordResetEmail");
+    logger.debug({ text });
+  }
+
+  async sendVerificationEmail(user: User, verifyUrl: string): Promise<void> {
+    const text = await render(<VerifyEmailEmail user={user} verifyUrl={verifyUrl} />, { plainText: true });
+    logger.info({ to: user.email, verifyUrl }, "[email:console] VerifyEmailEmail");
     logger.debug({ text });
   }
 }

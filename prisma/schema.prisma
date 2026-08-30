@@ -26,6 +26,17 @@ model User {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  // Token de un solo uso, solo se persiste su hash SHA-256 (nunca el token en claro) — mismo
+  // criterio que el certificado digital SUNAT: nunca guardar el secreto en sí.
+  passwordResetTokenHash      String?   @map("password_reset_token_hash")
+  passwordResetTokenExpiresAt DateTime? @map("password_reset_token_expires_at")
+
+  // No bloqueante a propósito (ver VerifyEmailUseCase/RegisterUseCase): un cliente sin verificar
+  // igual puede comprar y usar la cuenta, solo se le muestra un aviso.
+  emailVerifiedAt                 DateTime? @map("email_verified_at")
+  emailVerificationTokenHash      String?   @map("email_verification_token_hash")
+  emailVerificationTokenExpiresAt DateTime? @map("email_verification_token_expires_at")
+
   orders Order[]
 
   @@map("users")
