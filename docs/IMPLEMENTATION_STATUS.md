@@ -47,6 +47,7 @@ Leyenda: ✅ implementado y probado con tráfico real · ⚠️ implementado per
 | `tsc --noEmit` + ESLint funcionando | ✅ | El script `lint` existía desde Sprint 1 sin configuración real — se corrigió |
 | CI (GitHub Actions) | ✅ | `bun install --frozen-lockfile` → `prisma generate` → `tsc` → `lint` → `build`, verde en cada push a `main` |
 | Deploy automatizado a Railway/Render | ❌ | Fuera de alcance de este repo por diseño — se deja como conexión manual del dashboard de Railway/Render al repo de GitHub (evita dos fuentes de verdad sobre qué está desplegado) |
+| Backups de base de datos (`scripts/backup-db.sh`, `restore-db.sh`) | ✅ | Portado de saas-erp-pe. Red adicional **independiente** del PITR de Neon (primera línea de defensa) — cubre el caso "se borró/suspendió la cuenta completa", que un backup que vive dentro de esa misma cuenta no cubre. `pg_dump`/`psql` con fallback a `docker exec` en dev local. Verificado en vivo: dump real de la DB de desarrollo, restaurado contra una base temporal separada (luego eliminada) — las 12 tablas y los datos existentes llegaron intactos |
 
 ## Sprint 4 — Facturación electrónica SUNAT
 
