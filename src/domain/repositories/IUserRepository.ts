@@ -30,4 +30,7 @@ export interface IUserRepository {
   setEmailVerificationToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void>;
   findByEmailVerificationToken(tokenHash: string): Promise<User | null>;
   markEmailVerified(userId: string): Promise<void>;
+
+  /** Destinatarios del aviso de stock bajo (y de cualquier otro aviso operativo futuro). */
+  findAdmins(): Promise<User[]>;
 }

@@ -176,6 +176,16 @@ export class PrismaProductRepository implements IProductRepository {
     return variant ? toVariantDomain(variant) : null;
   }
 
+  // Filtrado en memoria (no SQL crudo): a esta escala de catálogo pyme no lo justifica — mismo
+  // criterio que saas-erp-pe, de donde se portó esta feature.
+  async findVariantsBelowThreshold(threshold: number): Promise<ProductVariant[]> {
+    const variants = await this.prisma.productVariant.findMany();
+    return variants
+      .map(toVariantDomain)
+      .filter((v) => v.stock - v.reservedStock <= threshold)
+      .sort((a, b) => a.stock - a.reservedStock - (b.stock - b.reservedStock));
+  }
+
   async addImage(input: AddProductImageInput): Promise<ProductImage> {
     const productVariantId = input.productVariantId ?? null;
     try {

@@ -11,6 +11,8 @@ import { OrderShippedEmail } from "./templates/OrderShippedEmail";
 import { ComplaintReceivedEmail } from "./templates/ComplaintReceivedEmail";
 import { PasswordResetEmail } from "./templates/PasswordResetEmail";
 import { VerifyEmailEmail } from "./templates/VerifyEmailEmail";
+import { LowStockDigestEmail } from "./templates/LowStockDigestEmail";
+import { ProductVariant } from "../../domain/entities/ProductVariant";
 
 export class ResendEmailService implements IEmailService {
   private readonly resend = new Resend(env.email.resendApiKey);
@@ -39,6 +41,11 @@ export class ResendEmailService implements IEmailService {
   async sendVerificationEmail(user: User, verifyUrl: string): Promise<void> {
     const html = await render(<VerifyEmailEmail user={user} verifyUrl={verifyUrl} />);
     await this.send(user.email, "Confirma tu correo", html);
+  }
+
+  async sendLowStockDigestEmail(admin: User, variants: ProductVariant[], threshold: number): Promise<void> {
+    const html = await render(<LowStockDigestEmail admin={admin} variants={variants} threshold={threshold} />);
+    await this.send(admin.email, `Stock bajo en ${variants.length} producto(s)`, html);
   }
 
   private async send(to: string, subject: string, html: string): Promise<void> {

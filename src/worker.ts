@@ -1,11 +1,23 @@
+import { Worker } from "bullmq";
 import { createStockHoldWorker } from "./infrastructure/queue/stockHoldWorker";
 import { createSunatRetryWorker } from "./infrastructure/queue/sunatRetryWorker";
+import { createLowStockWorker } from "./infrastructure/queue/lowStockWorker";
+import { ensureLowStockRepeatingJob } from "./infrastructure/queue/lowStockQueue";
+import { env } from "./config/env";
 import { logger } from "./infrastructure/logging/logger";
 
 const stockHoldWorker = createStockHoldWorker();
 const sunatRetryWorker = createSunatRetryWorker();
 
-logger.info("Flashkings worker escuchando las colas 'stock-hold' y 'sunat-retry'...");
+let lowStockWorker: Worker | undefined;
+if (env.lowStock.enabled) {
+  lowStockWorker = createLowStockWorker();
+  void ensureLowStockRepeatingJob();
+}
+
+logger.info(
+  `Flashkings worker escuchando las colas 'stock-hold', 'sunat-retry'${env.lowStock.enabled ? " y 'low-stock'" : ""}...`,
+);
 
 // Deja que el proceso termine con una traza en logs en vez de morir en silencio — la política de
 // reinicio la impone la plataforma de hosting (Render `restart: always`, systemd, PM2, etc.), acá
@@ -23,7 +35,7 @@ process.on("uncaughtException", (err) => {
 
 async function shutdown(signal: string) {
   logger.info(`[worker] ${signal} recibido, cerrando workers...`);
-  await Promise.all([stockHoldWorker.close(), sunatRetryWorker.close()]);
+  await Promise.all([stockHoldWorker.close(), sunatRetryWorker.close(), lowStockWorker?.close()]);
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

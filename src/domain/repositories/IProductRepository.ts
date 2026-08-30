@@ -87,6 +87,8 @@ export interface IProductRepository {
   /** ADMIN-only. reservedStock is intentionally not editable — it's system-managed by the order flow. */
   updateVariant(variantId: string, data: UpdateProductVariantData): Promise<ProductVariant>;
   findVariantById(variantId: string): Promise<ProductVariant | null>;
+  /** `stock - reservedStock <= threshold` — para el aviso diario de stock bajo. */
+  findVariantsBelowThreshold(threshold: number): Promise<ProductVariant[]>;
   /** ADMIN-only. Marking isPrimary:true atomically unsets any other primary image within the
    * same (productId, productVariantId) scope. */
   addImage(input: AddProductImageInput): Promise<ProductImage>;

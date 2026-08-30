@@ -9,6 +9,8 @@ import { OrderShippedEmail } from "./templates/OrderShippedEmail";
 import { ComplaintReceivedEmail } from "./templates/ComplaintReceivedEmail";
 import { PasswordResetEmail } from "./templates/PasswordResetEmail";
 import { VerifyEmailEmail } from "./templates/VerifyEmailEmail";
+import { LowStockDigestEmail } from "./templates/LowStockDigestEmail";
+import { ProductVariant } from "../../domain/entities/ProductVariant";
 
 /** Dev/test fallback when EMAIL_PROVIDER=console (no Resend API key needed) — renders the
  * real template and logs it instead of sending, so the flow is fully exercisable without credentials. */
@@ -49,6 +51,15 @@ export class ConsoleEmailService implements IEmailService {
   async sendVerificationEmail(user: User, verifyUrl: string): Promise<void> {
     const text = await render(<VerifyEmailEmail user={user} verifyUrl={verifyUrl} />, { plainText: true });
     logger.info({ to: user.email, verifyUrl }, "[email:console] VerifyEmailEmail");
+    logger.debug({ text });
+  }
+
+  async sendLowStockDigestEmail(admin: User, variants: ProductVariant[], threshold: number): Promise<void> {
+    const text = await render(<LowStockDigestEmail admin={admin} variants={variants} threshold={threshold} />, { plainText: true });
+    logger.info(
+      { to: admin.email, threshold, skus: variants.map((v) => v.sku) },
+      "[email:console] LowStockDigestEmail",
+    );
     logger.debug({ text });
   }
 }

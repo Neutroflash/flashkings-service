@@ -115,4 +115,9 @@ export class PrismaUserRepository implements IUserRepository {
       data: { emailVerifiedAt: new Date(), emailVerificationTokenHash: null, emailVerificationTokenExpiresAt: null },
     });
   }
+
+  async findAdmins(): Promise<User[]> {
+    const admins = await this.prisma.user.findMany({ where: { role: "ADMIN" }, select: userSelect });
+    return admins.map(toDomain);
+  }
 }

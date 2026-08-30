@@ -42,6 +42,7 @@ Leyenda: ✅ implementado y probado con tráfico real · ⚠️ implementado per
 | Envío real de email (Resend) | ❌ | Falta `RESEND_API_KEY` — el sistema funciona hoy con `EMAIL_PROVIDER=console` (loguea el HTML en vez de enviar) |
 | WhatsApp | ⚠️ | Solo enlace `wa.me` generado en frontend, sin integración con WhatsApp Business API |
 | Rate limiting (Redis) en auth y catálogo | ✅ | Probado: intento #10 de login → 429 |
+| Aviso diario de stock bajo (cola `low-stock`, recurrente) | ✅ | Portado de saas-erp-pe. Un solo correo por ADMIN (no uno por SKU) si algo cae en o por debajo de `LOW_STOCK_THRESHOLD` (default 5), toggleable con `LOW_STOCK_ALERTS_ENABLED`. **Bug de compatibilidad encontrado**: BullMQ 6.x (la versión instalada acá) eliminó `repeat` de `queue.add()` en favor de `queue.upsertJobScheduler()` — el código original de saas-erp-pe (bullmq 5.x) no compilaba tal cual. Verificado en vivo: detecta correctamente las 2 variantes bajo el umbral (excluye las demás), `0` correos cuando nada califica, el job recurrente se registra en Redis, y el toggle `LOW_STOCK_ALERTS_ENABLED=false` saca la cola del arranque del worker |
 | CORS restrictivo (allowlist, no wildcard) | ✅ | |
 | Logger centralizado (Pino) | ⚠️→✅ | Reemplazó todos los `console.error` de Sprint 1-3, pero `stockHoldWorker.ts` (Sprint 2) había quedado afuera — corregido en Sprint 4 junto con la supervisión del worker, ver abajo |
 | `tsc --noEmit` + ESLint funcionando | ✅ | El script `lint` existía desde Sprint 1 sin configuración real — se corrigió |

@@ -4,6 +4,8 @@ import { registerEventListeners } from "./infrastructure/events/registerEventLis
 import { logger } from "./infrastructure/logging/logger";
 import { createStockHoldWorker } from "./infrastructure/queue/stockHoldWorker";
 import { createSunatRetryWorker } from "./infrastructure/queue/sunatRetryWorker";
+import { createLowStockWorker } from "./infrastructure/queue/lowStockWorker";
+import { ensureLowStockRepeatingJob } from "./infrastructure/queue/lowStockQueue";
 
 registerEventListeners();
 
@@ -22,8 +24,10 @@ app.listen(env.port, () => {
 if (env.runWorkerInProcess) {
   const stockHoldWorker = createStockHoldWorker();
   const sunatRetryWorker = createSunatRetryWorker();
-  logger.info("Workers 'stock-hold' y 'sunat-retry' corriendo en el mismo proceso que la API (RUN_WORKER_IN_PROCESS=true)");
+  const lowStockWorker = env.lowStock.enabled ? createLowStockWorker() : undefined;
+  if (lowStockWorker) void ensureLowStockRepeatingJob();
+  logger.info("Workers 'stock-hold', 'sunat-retry' y 'low-stock' corriendo en el mismo proceso que la API (RUN_WORKER_IN_PROCESS=true)");
   process.on("SIGTERM", async () => {
-    await Promise.all([stockHoldWorker.close(), sunatRetryWorker.close()]);
+    await Promise.all([stockHoldWorker.close(), sunatRetryWorker.close(), lowStockWorker?.close()]);
   });
 }

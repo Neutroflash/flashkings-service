@@ -60,4 +60,11 @@ export const env = {
     certPath: process.env.SUNAT_CERT_PATH ?? "",
     certPassword: process.env.SUNAT_CERT_PASSWORD ?? "",
   },
+  // Aviso diario de stock bajo — un solo umbral global (no por SKU, YAGNI: nadie pidió umbrales
+  // distintos por producto). Habilitado por default porque el correo no molesta si no hay nada
+  // bajo de stock (nunca se manda un digest vacío) — ver RunLowStockDigestUseCase.
+  lowStock: {
+    enabled: process.env.LOW_STOCK_ALERTS_ENABLED !== "false",
+    threshold: Number(process.env.LOW_STOCK_THRESHOLD ?? 5),
+  },
 };
