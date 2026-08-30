@@ -6,6 +6,7 @@ import { PrismaInvoiceRepository } from "../database/PrismaInvoiceRepository";
 import { invoicingGateway } from "../invoicing/invoicingGateway";
 import { sunatRetryScheduler } from "./sunatRetryScheduler";
 import { RetryInvoiceUseCase } from "../../application/invoicing/RetryInvoiceUseCase";
+import { logger } from "../logging/logger";
 
 interface SunatRetryJobData {
   invoiceId: string;
@@ -23,11 +24,15 @@ export function createSunatRetryWorker(): Worker<SunatRetryJobData> {
   );
 
   worker.on("completed", (job) => {
-    console.log(`[sunat-retry] comprobante ${job.data.invoiceId}: reintento procesado`);
+    logger.info({ invoiceId: job.data.invoiceId }, "[sunat-retry] reintento procesado");
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[sunat-retry] fallo al reintentar el comprobante ${job?.data.invoiceId}:`, err);
+    logger.error({ invoiceId: job?.data.invoiceId, err }, "[sunat-retry] fallo al reintentar el comprobante");
+  });
+
+  worker.on("error", (err) => {
+    logger.error({ err }, "[sunat-retry] error de conexión/infraestructura del worker");
   });
 
   return worker;

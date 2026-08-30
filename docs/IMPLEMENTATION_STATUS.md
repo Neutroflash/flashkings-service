@@ -39,7 +39,7 @@ Leyenda: ✅ implementado y probado con tráfico real · ⚠️ implementado per
 | WhatsApp | ⚠️ | Solo enlace `wa.me` generado en frontend, sin integración con WhatsApp Business API |
 | Rate limiting (Redis) en auth y catálogo | ✅ | Probado: intento #10 de login → 429 |
 | CORS restrictivo (allowlist, no wildcard) | ✅ | |
-| Logger centralizado (Pino) | ✅ | Reemplazó todos los `console.error` |
+| Logger centralizado (Pino) | ⚠️→✅ | Reemplazó todos los `console.error` de Sprint 1-3, pero `stockHoldWorker.ts` (Sprint 2) había quedado afuera — corregido en Sprint 4 junto con la supervisión del worker, ver abajo |
 | `tsc --noEmit` + ESLint funcionando | ✅ | El script `lint` existía desde Sprint 1 sin configuración real — se corrigió |
 | CI (GitHub Actions) | ✅ | `bun install --frozen-lockfile` → `prisma generate` → `tsc` → `lint` → `build`, verde en cada push a `main` |
 | Deploy automatizado a Railway/Render | ❌ | Fuera de alcance de este repo por diseño — se deja como conexión manual del dashboard de Railway/Render al repo de GitHub (evita dos fuentes de verdad sobre qué está desplegado) |
@@ -56,6 +56,7 @@ Portado desde `saas-erp-pe` (SaaS multi-tenant hermano de este proyecto) — mis
 | Reintento automático ante SUNAT caído (`PENDING_SUNAT`, cola BullMQ `sunat-retry`) | ✅ | Backoff creciente (2min, 4min, 8min...), máx. 5 intentos (`SUNAT_RETRY_MAX_ATTEMPTS`). Mecanismo de idempotencia/DI verificado en vivo; el escenario real de SUNAT caído no se pudo simular (necesitaría tirar abajo `e-beta.sunat.gob.pe`, fuera de nuestro control) |
 | **Bug real encontrado y corregido en el camino** — FACTURA rechazada | ✅ (corregido) | Boleta se aceptaba sin problema, pero Factura no: faltaba `cbc:AddressTypeCode` (código de local anexo) en `AccountingSupplierParty` y `cac:PaymentTerms` (forma de pago). Corregido acá y portado de vuelta a `saas-erp-pe`, donde el mismo bug existía sin detectar (nunca se había probado Factura ahí, solo Boleta y Notas) — confirmado en vivo en los dos proyectos tras el fix |
 | Certificado digital acreditado real (producción) | ❌ | El de prueba (autofirmado, homologación pública `MODDATOS`) solo sirve contra BETA — para producción hace falta un certificado real: gratis vía Certificado Digital Tributario de SUNAT (SOL → Empresas → Comprobantes de Pago) si el negocio califica como MYPE, o de una entidad certificadora acreditada ante INDECOPI si no |
+| Supervisión de `worker.ts` (`SIGINT`, `unhandledRejection`, `uncaughtException`, `.on("error")` de conexión) | ✅ | Antes solo se manejaba `SIGTERM` — un `Ctrl+C` en dev o una excepción no atrapada en cualquiera de los dos workers mataba el proceso sin dejar ningún rastro. Verificado en vivo: arranque limpio, `SIGINT` cierra las 2 colas y termina con log claro. De paso, `stockHoldWorker.ts` pasó de `console.log`/`console.error` a Pino (`logger`) — se había quedado afuera del reemplazo de Sprint 3 |
 
 ## Pendientes explícitos (requieren acción humana, no bloquean el resto)
 
