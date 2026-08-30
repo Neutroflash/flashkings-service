@@ -44,12 +44,26 @@ Leyenda: ✅ implementado y probado con tráfico real · ⚠️ implementado per
 | CI (GitHub Actions) | ✅ | `bun install --frozen-lockfile` → `prisma generate` → `tsc` → `lint` → `build`, verde en cada push a `main` |
 | Deploy automatizado a Railway/Render | ❌ | Fuera de alcance de este repo por diseño — se deja como conexión manual del dashboard de Railway/Render al repo de GitHub (evita dos fuentes de verdad sobre qué está desplegado) |
 
+## Sprint 4 — Facturación electrónica SUNAT
+
+Portado desde `saas-erp-pe` (SaaS multi-tenant hermano de este proyecto) — mismo módulo `infrastructure/invoicing/sunat/*` (firma XAdES-BES, XML UBL 2.1, envío SOAP), adaptado acá a negocio único: credenciales SUNAT en variables de entorno (`SUNAT_*` en `.env`), no cifradas por tenant en la base de datos como en el proyecto de origen.
+
+| Ítem | Estado | Notas |
+|---|---|---|
+| Integración directa con SUNAT (sin PSE/OSE), Boleta y Factura | ✅ | **Confirmado en vivo contra `e-beta.sunat.gob.pe` real, las dos**: `B001-2` (`ResponseCode "0"`, "ha sido aceptada") y `F001-5` (ídem) |
+| Firma XAdES-BES (`sign.ts`, `xades.ts`, `certificate.ts`) | ✅ | Portado sin cambios — la firma es agnóstica del tipo de documento UBL |
+| PDF del comprobante bajo demanda (`GET /api/admin/orders/:id/invoice/pdf`) | ✅ | Verificado: PDF válido de 1 página generado a partir del comprobante `ISSUED` |
+| Reintento automático ante SUNAT caído (`PENDING_SUNAT`, cola BullMQ `sunat-retry`) | ✅ | Backoff creciente (2min, 4min, 8min...), máx. 5 intentos (`SUNAT_RETRY_MAX_ATTEMPTS`). Mecanismo de idempotencia/DI verificado en vivo; el escenario real de SUNAT caído no se pudo simular (necesitaría tirar abajo `e-beta.sunat.gob.pe`, fuera de nuestro control) |
+| **Bug real encontrado y corregido en el camino** — FACTURA rechazada | ✅ (corregido) | Boleta se aceptaba sin problema, pero Factura no: faltaba `cbc:AddressTypeCode` (código de local anexo) en `AccountingSupplierParty` y `cac:PaymentTerms` (forma de pago). Corregido acá y portado de vuelta a `saas-erp-pe`, donde el mismo bug existía sin detectar (nunca se había probado Factura ahí, solo Boleta y Notas) — confirmado en vivo en los dos proyectos tras el fix |
+| Certificado digital acreditado real (producción) | ❌ | El de prueba (autofirmado, homologación pública `MODDATOS`) solo sirve contra BETA — para producción hace falta un certificado real: gratis vía Certificado Digital Tributario de SUNAT (SOL → Empresas → Comprobantes de Pago) si el negocio califica como MYPE, o de una entidad certificadora acreditada ante INDECOPI si no |
+
 ## Pendientes explícitos (requieren acción humana, no bloquean el resto)
 
 1. **Culqi**: crear cuenta sandbox, obtener `CULQI_PUBLIC_KEY`/`CULQI_SECRET_KEY`, habilitar Yape/Plin, confirmar el esquema real de firma de webhook y registrar la URL del webhook (necesita túnel tipo ngrok en local).
 2. **Resend**: crear cuenta, obtener `RESEND_API_KEY`, verificar el dominio de envío (`pedidos@flashkings.pe`), cambiar `EMAIL_PROVIDER=resend`.
 3. **Infraestructura de producción**: Postgres gestionado (Supabase/Neon/Render), Redis gestionado (Redis Cloud/Upstash), conectar el repo a Railway o Render.
 4. **Dominio**: una vez `flashkings.pe` apunte a producción, actualizar `COOKIE_DOMAIN` y `CORS_ORIGIN`.
+5. **SUNAT**: certificado digital acreditado real (ver Sprint 4 arriba) + RUC/razón social/dirección/usuario SOL reales en `.env`, cambiar `SUNAT_PROVIDER=sunat` y `SUNAT_ENVIRONMENT=PRODUCCION` recién después de validar en BETA con esos datos reales.
 
 ## Cómo correr esto localmente
 

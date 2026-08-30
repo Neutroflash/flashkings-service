@@ -44,4 +44,20 @@ export const env = {
     culqiPublicKey: process.env.CULQI_PUBLIC_KEY ?? "",
     culqiSecretKey: process.env.CULQI_SECRET_KEY ?? "",
   },
+  // Integración directa con SUNAT (sin PSE/OSE) — single-tenant, así que las credenciales viven
+  // en variables de entorno, no cifradas en la base de datos (a diferencia de saas-erp-pe, de
+  // donde se portó este módulo: ahí cada tenant tiene sus propias credenciales, acá solo hay un
+  // negocio). El certificado se lee de un archivo en disco (SUNAT_CERT_PATH), no de una env var
+  // en base64 — más simple de montar como secret file en el hosting (Render lo soporta nativo).
+  sunat: {
+    provider: (process.env.SUNAT_PROVIDER ?? "fake") as "fake" | "sunat",
+    environment: (process.env.SUNAT_ENVIRONMENT ?? "BETA") as "BETA" | "PRODUCCION",
+    ruc: process.env.SUNAT_RUC ?? "",
+    businessName: process.env.SUNAT_BUSINESS_NAME ?? "",
+    address: process.env.SUNAT_ADDRESS ?? "",
+    solUser: process.env.SUNAT_SOL_USER ?? "",
+    solPassword: process.env.SUNAT_SOL_PASSWORD ?? "",
+    certPath: process.env.SUNAT_CERT_PATH ?? "",
+    certPassword: process.env.SUNAT_CERT_PASSWORD ?? "",
+  },
 };

@@ -3,6 +3,7 @@ import { env } from "./config/env";
 import { registerEventListeners } from "./infrastructure/events/registerEventListeners";
 import { logger } from "./infrastructure/logging/logger";
 import { createStockHoldWorker } from "./infrastructure/queue/stockHoldWorker";
+import { createSunatRetryWorker } from "./infrastructure/queue/sunatRetryWorker";
 
 registerEventListeners();
 
@@ -19,9 +20,10 @@ app.listen(env.port, () => {
 // request wakes it up, instead of firing exactly on time — acceptable for a low-traffic launch,
 // not for real scale, at which point switch back to running worker.ts as its own service.
 if (env.runWorkerInProcess) {
-  const worker = createStockHoldWorker();
-  logger.info("Stock-hold worker corriendo en el mismo proceso que la API (RUN_WORKER_IN_PROCESS=true)");
+  const stockHoldWorker = createStockHoldWorker();
+  const sunatRetryWorker = createSunatRetryWorker();
+  logger.info("Workers 'stock-hold' y 'sunat-retry' corriendo en el mismo proceso que la API (RUN_WORKER_IN_PROCESS=true)");
   process.on("SIGTERM", async () => {
-    await worker.close();
+    await Promise.all([stockHoldWorker.close(), sunatRetryWorker.close()]);
   });
 }

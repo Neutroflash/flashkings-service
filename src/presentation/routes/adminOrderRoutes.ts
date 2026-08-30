@@ -9,8 +9,10 @@ import { GetOrderByIdUseCase } from "../../application/orders/GetOrderByIdUseCas
 import { ConfirmManualPaymentUseCase } from "../../application/payments/ConfirmManualPaymentUseCase";
 import { RejectManualPaymentUseCase } from "../../application/payments/RejectManualPaymentUseCase";
 import { IssueInvoiceUseCase } from "../../application/invoicing/IssueInvoiceUseCase";
+import { GetInvoicePdfUseCase } from "../../application/invoicing/GetInvoicePdfUseCase";
 import { eventBus } from "../../infrastructure/events/NodeEventBus";
 import { invoicingGateway } from "../../infrastructure/invoicing/invoicingGateway";
+import { sunatRetryScheduler } from "../../infrastructure/queue/sunatRetryScheduler";
 import { AdminOrderController } from "../controllers/AdminOrderController";
 import { asyncHandler } from "../middlewares/asyncHandler";
 import { authenticateJWT } from "../middlewares/authenticateJWT";
@@ -25,7 +27,8 @@ const adminOrderController = new AdminOrderController(
   new GetOrderByIdUseCase(orderRepository),
   new ConfirmManualPaymentUseCase(orderRepository, paymentRepository, eventBus),
   new RejectManualPaymentUseCase(orderRepository, paymentRepository),
-  new IssueInvoiceUseCase(invoiceRepository, orderRepository, invoicingGateway),
+  new IssueInvoiceUseCase(invoiceRepository, orderRepository, invoicingGateway, sunatRetryScheduler),
+  new GetInvoicePdfUseCase(invoiceRepository, orderRepository),
 );
 
 export const adminOrderRoutes = Router();
@@ -38,3 +41,4 @@ adminOrderRoutes.patch("/:id/status", asyncHandler(adminOrderController.updateSt
 adminOrderRoutes.post("/:id/confirm-payment", asyncHandler(adminOrderController.confirmPayment));
 adminOrderRoutes.post("/:id/reject-payment", asyncHandler(adminOrderController.rejectPayment));
 adminOrderRoutes.post("/:id/invoice", asyncHandler(adminOrderController.issueInvoice));
+adminOrderRoutes.get("/:id/invoice/pdf", asyncHandler(adminOrderController.getInvoicePdf));

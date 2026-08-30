@@ -218,6 +218,7 @@ enum InvoiceType {
 }
 
 enum InvoiceStatus {
+  PENDING_SUNAT // SUNAT no respondió (no es un rechazo) — el XML ya está firmado, se reintenta el mismo envío
   ISSUED
   FAILED
   VOID
@@ -235,10 +236,9 @@ model InvoiceCounter {
   @@map("invoice_counters")
 }
 
-// Comprobante de pago electrónico (SUNAT). NOT auto-issued on payment: while the business isn't
-// yet registered as an "emisor electrónico" with SUNAT, this is a manual ADMIN action on an
-// already-paid order (see IssueInvoiceUseCase). The real integration (a PSE like Nubefact, via
-// IInvoicingGateway) isn't connected yet — see FakeInvoicingGateway and INVOICING_PROVIDER.
+// Comprobante de pago electrónico (SUNAT). NOT auto-issued on payment: this is a manual ADMIN
+// action on an already-paid order (see IssueInvoiceUseCase). Integración directa con SUNAT (sin
+// PSE/OSE) vía SunatInvoicingGateway — ver src/infrastructure/invoicing/sunat/.
 model Invoice {
   id               String        @id @default(uuid())
   orderId          String        @unique @map("order_id")
@@ -253,6 +253,10 @@ model Invoice {
   pdfUrl           String?       @map("pdf_url")
   xmlUrl           String?       @map("xml_url")
   providerResponse Json?         @map("provider_response")
+  // XML firmado, persistido tal cual se envió — necesario para reintentar un envío PENDING_SUNAT
+  // sin volver a firmar (la firma ya es válida, lo que falló fue la disponibilidad de SUNAT).
+  signedXml        String?       @db.Text @map("signed_xml")
+  sunatRetryCount  Int           @default(0) @map("sunat_retry_count")
   issuedAt         DateTime?     @map("issued_at")
   createdAt        DateTime      @default(now()) @map("created_at")
 

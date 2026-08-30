@@ -1,9 +1,10 @@
+import { env } from "../../config/env";
 import { IInvoicingGateway } from "../../domain/services/IInvoicingGateway";
 import { FakeInvoicingGateway } from "./FakeInvoicingGateway";
+import { SunatInvoicingGateway } from "./SunatInvoicingGateway";
 
-// No real PSE (Nubefact or similar) is wired in yet — see the comment on IInvoicingGateway.
-// When one is contracted, add its adapter here behind INVOICING_PROVIDER, the same way
-// paymentGatewayFactory.ts switches between FakePaymentGateway and CulqiPaymentGateway.
+// Mismo patrón que paymentGatewayFactory.ts (FakePaymentGateway vs CulqiPaymentGateway) —
+// SUNAT_PROVIDER=sunat activa la integración directa con SUNAT (sin PSE/OSE), ver config/env.ts.
 export function createInvoicingGateway(): IInvoicingGateway {
-  return new FakeInvoicingGateway();
+  return env.sunat.provider === "sunat" ? new SunatInvoicingGateway() : new FakeInvoicingGateway();
 }

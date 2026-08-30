@@ -13,10 +13,17 @@ export interface SaveInvoiceData {
   documentType: string;
   documentNumber: string;
   businessName?: string;
-  status: "ISSUED" | "FAILED";
+  status: "ISSUED" | "FAILED" | "PENDING_SUNAT";
   pdfUrl: string | null;
   xmlUrl: string | null;
   providerResponse: unknown;
+  signedXml: string | null;
+}
+
+export interface RetryResultData {
+  status: "ISSUED" | "FAILED";
+  providerResponse: unknown;
+  sunatRetryCount: number;
 }
 
 export interface IInvoiceRepository {
@@ -29,4 +36,9 @@ export interface IInvoiceRepository {
   reserveNumber(type: InvoiceType): Promise<ReservedInvoiceNumber>;
   save(data: SaveInvoiceData): Promise<Invoice>;
   findByOrderId(orderId: string): Promise<Invoice | null>;
+  findById(id: string): Promise<Invoice | null>;
+  /** Aplica el resultado TERMINAL de un reintento (ISSUED/FAILED) — nunca vuelve a pisar el XML. */
+  updateRetryResult(id: string, data: RetryResultData): Promise<void>;
+  /** Sigue PENDING_SUNAT tras un reintento sin resultado definitivo — solo avanza el contador. */
+  incrementRetryCount(id: string): Promise<void>;
 }

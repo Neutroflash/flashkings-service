@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import {
   IInvoiceRepository,
   ReservedInvoiceNumber,
+  RetryResultData,
   SaveInvoiceData,
 } from "../../domain/repositories/IInvoiceRepository";
 import { Invoice, InvoiceType } from "../../domain/entities/Invoice";
@@ -45,6 +46,7 @@ export class PrismaInvoiceRepository implements IInvoiceRepository {
         pdfUrl: data.pdfUrl,
         xmlUrl: data.xmlUrl,
         providerResponse: data.providerResponse as Prisma.InputJsonValue,
+        signedXml: data.signedXml,
         issuedAt: data.status === "ISSUED" ? new Date() : null,
       },
     });
@@ -54,5 +56,26 @@ export class PrismaInvoiceRepository implements IInvoiceRepository {
   async findByOrderId(orderId: string): Promise<Invoice | null> {
     const invoice = await this.prisma.invoice.findUnique({ where: { orderId } });
     return invoice ? toDomain(invoice) : null;
+  }
+
+  async findById(id: string): Promise<Invoice | null> {
+    const invoice = await this.prisma.invoice.findUnique({ where: { id } });
+    return invoice ? toDomain(invoice) : null;
+  }
+
+  async updateRetryResult(id: string, data: RetryResultData): Promise<void> {
+    await this.prisma.invoice.update({
+      where: { id },
+      data: {
+        status: data.status,
+        providerResponse: data.providerResponse as Prisma.InputJsonValue,
+        sunatRetryCount: data.sunatRetryCount,
+        issuedAt: data.status === "ISSUED" ? new Date() : null,
+      },
+    });
+  }
+
+  async incrementRetryCount(id: string): Promise<void> {
+    await this.prisma.invoice.update({ where: { id }, data: { sunatRetryCount: { increment: 1 } } });
   }
 }
