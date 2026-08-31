@@ -9,11 +9,13 @@ function formatAmount(n: number): string {
 }
 
 /** Representación impresa mínima (no reemplaza al XML/CDR, que es el comprobante legal en sí) —
- * suficiente para entregarle algo legible al cliente en el mostrador o por correo. */
-export async function generatePDFComprobante(payload: SunatInvoicePayload): Promise<Buffer> {
+ * suficiente para entregarle algo legible al cliente en el mostrador o por correo. `documentDigest`
+ * es el "Valor Resumen" del QR (10° campo, ver qr.ts) — el llamador lo extrae de `invoice.signedXml`
+ * ya persistido (`extractDocumentDigestValue`). */
+export async function generatePDFComprobante(payload: SunatInvoicePayload, documentDigest: string): Promise<Buffer> {
   const totalVenta = payload.lineas.reduce((sum, l) => sum + l.unitPriceWithTax * l.quantity, 0);
   const { taxedAmount, igvAmount } = calculateTaxBreakdown(totalVenta);
-  const qrPngBuffer = await QRCode.toBuffer(buildQrContent(payload), { errorCorrectionLevel: "M", margin: 1, width: 150 });
+  const qrPngBuffer = await QRCode.toBuffer(buildQrContent(payload, documentDigest), { errorCorrectionLevel: "M", margin: 1, width: 150 });
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 40 });

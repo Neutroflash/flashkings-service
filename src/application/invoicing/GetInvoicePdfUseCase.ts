@@ -2,6 +2,7 @@ import { IInvoiceRepository } from "../../domain/repositories/IInvoiceRepository
 import { IOrderRepository } from "../../domain/repositories/IOrderRepository";
 import { NotFoundError, ConflictError } from "../../shared/errors/AppError";
 import { generatePDFComprobante } from "../../infrastructure/invoicing/sunat/pdf";
+import { extractDocumentDigestValue } from "../../infrastructure/invoicing/sunat/extract-digest";
 import { DOCUMENT_TYPE_CODE, SunatDocumentTypeCode, SunatInvoicePayload } from "../../infrastructure/invoicing/sunat/types";
 import { env } from "../../config/env";
 
@@ -56,6 +57,10 @@ export class GetInvoicePdfUseCase {
       })),
     };
 
-    return generatePDFComprobante(payload);
+    // invoice.signedXml siempre está presente para un comprobante ISSUED vía SunatInvoicingGateway
+    // (se firma antes de enviar) — solo faltaría con el gateway fake, que en la práctica no llega
+    // a ISSUED con SUNAT real configurado.
+    const documentDigest = invoice.signedXml ? extractDocumentDigestValue(invoice.signedXml) : "";
+    return generatePDFComprobante(payload, documentDigest);
   }
 }
