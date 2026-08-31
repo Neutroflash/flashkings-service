@@ -7,6 +7,7 @@ import { ConfirmManualPaymentUseCase } from "../../application/payments/ConfirmM
 import { RejectManualPaymentUseCase } from "../../application/payments/RejectManualPaymentUseCase";
 import { IssueInvoiceUseCase } from "../../application/invoicing/IssueInvoiceUseCase";
 import { GetInvoicePdfUseCase } from "../../application/invoicing/GetInvoicePdfUseCase";
+import { GetInvoiceTicketDataUseCase } from "../../application/invoicing/GetInvoiceTicketDataUseCase";
 
 const ORDER_STATUSES = ["PENDING_PAYMENT", "PAID", "IN_PREPARATION", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
 
@@ -47,6 +48,7 @@ export class AdminOrderController {
     private readonly rejectManualPaymentUseCase: RejectManualPaymentUseCase,
     private readonly issueInvoiceUseCase: IssueInvoiceUseCase,
     private readonly getInvoicePdfUseCase: GetInvoicePdfUseCase,
+    private readonly getInvoiceTicketDataUseCase: GetInvoiceTicketDataUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -88,5 +90,10 @@ export class AdminOrderController {
   getInvoicePdf = async (req: Request, res: Response): Promise<void> => {
     const pdfBuffer = await this.getInvoicePdfUseCase.execute(req.params.id);
     res.status(200).setHeader("Content-Type", "application/pdf").send(pdfBuffer);
+  };
+
+  getInvoiceTicketData = async (req: Request, res: Response): Promise<void> => {
+    const data = await this.getInvoiceTicketDataUseCase.execute(req.params.id);
+    res.status(200).json(data);
   };
 }
