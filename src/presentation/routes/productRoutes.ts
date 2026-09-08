@@ -10,6 +10,10 @@ import { UpdateProductVariantUseCase } from "../../application/products/UpdatePr
 import { AddProductImageUseCase } from "../../application/products/AddProductImageUseCase";
 import { UpdateProductImageUseCase } from "../../application/products/UpdateProductImageUseCase";
 import { DeleteProductImageUseCase } from "../../application/products/DeleteProductImageUseCase";
+import { DeleteProductUseCase } from "../../application/products/DeleteProductUseCase";
+import { AddProductVariantUseCase } from "../../application/products/AddProductVariantUseCase";
+import { DeleteProductVariantUseCase } from "../../application/products/DeleteProductVariantUseCase";
+import { SignImageUploadUseCase } from "../../application/products/SignImageUploadUseCase";
 import { ProductController } from "../controllers/ProductController";
 import { asyncHandler } from "../middlewares/asyncHandler";
 import { attachUserIfPresent, authenticateJWT } from "../middlewares/authenticateJWT";
@@ -27,12 +31,24 @@ const productController = new ProductController(
   new AddProductImageUseCase(productRepository),
   new UpdateProductImageUseCase(productRepository),
   new DeleteProductImageUseCase(productRepository),
+  new DeleteProductUseCase(productRepository),
+  new AddProductVariantUseCase(productRepository),
+  new DeleteProductVariantUseCase(productRepository),
+  new SignImageUploadUseCase(),
 );
 
 export const productRoutes = Router();
 
 // Public routes: attachUserIfPresent lets the use case sanitize the response
 // unless the caller is an authenticated ADMIN.
+// Antes de "/:slug", que si no capturaría "images" como si fuera el slug de un producto.
+productRoutes.get(
+  "/images/upload-signature",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.signImageUpload),
+);
+
 productRoutes.get("/", catalogLimiter, attachUserIfPresent, asyncHandler(productController.list));
 productRoutes.get("/:slug", catalogLimiter, attachUserIfPresent, asyncHandler(productController.getBySlug));
 
@@ -67,4 +83,22 @@ productRoutes.delete(
   authenticateJWT,
   requireRole("ADMIN"),
   asyncHandler(productController.deleteImage),
+);
+productRoutes.post(
+  "/:productId/variants",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.addVariant),
+);
+productRoutes.delete(
+  "/variants/:id",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.deleteVariant),
+);
+productRoutes.delete(
+  "/:productId",
+  authenticateJWT,
+  requireRole("ADMIN"),
+  asyncHandler(productController.deleteProduct),
 );

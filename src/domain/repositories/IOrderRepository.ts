@@ -10,7 +10,11 @@ export interface CreateOrderInput {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  /** Calle y referencia — la ubicación tarifable va en los tres campos de abajo. */
   shippingAddress: string;
+  shippingDepartment: string;
+  shippingProvince: string;
+  shippingDistrict: string;
   items: CreateOrderItemInput[];
 }
 

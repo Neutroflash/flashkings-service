@@ -33,6 +33,14 @@ export const env = {
   // expiry worker inside this same process instead. See the comment in server.ts for the tradeoff.
   runWorkerInProcess: process.env.RUN_WORKER_IN_PROCESS === "true",
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
+  // Subida de imágenes del catálogo. El apiSecret NUNCA sale del backend: solo se usa para firmar
+  // el upload que el navegador manda directo a Cloudinary — ver SignImageUploadUseCase.
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? "",
+    apiKey: process.env.CLOUDINARY_API_KEY ?? "",
+    apiSecret: process.env.CLOUDINARY_API_SECRET ?? "",
+    uploadFolder: process.env.CLOUDINARY_UPLOAD_FOLDER ?? "flashkings/products",
+  },
   email: {
     provider: (process.env.EMAIL_PROVIDER ?? "console") as "console" | "resend",
     resendApiKey: process.env.RESEND_API_KEY ?? "",

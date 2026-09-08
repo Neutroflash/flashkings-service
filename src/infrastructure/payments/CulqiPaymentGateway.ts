@@ -2,12 +2,17 @@ import {
   ChargeStatusResult,
   CreateChargeInput,
   CreateChargeResult,
+  CreateRefundInput,
+  CreateRefundResult,
   IPaymentGateway,
   PaymentWebhookEvent,
 } from "../../domain/services/IPaymentGateway";
 import { env } from "../../config/env";
 
 const CULQI_CHARGES_URL = "https://api.culqi.com/v2/charges";
+const CULQI_REFUNDS_URL = "https://api.culqi.com/v2/refunds";
+/** Catálogo cerrado de Culqi. El motivo real y legible del admin viaja en `metadata.detail`. */
+const CULQI_REFUND_REASON = "solicitud_comprador";
 
 interface CulqiChargeResponse {
   id?: string;
@@ -15,6 +20,13 @@ interface CulqiChargeResponse {
   merchant_message?: string;
   object?: string;
   metadata?: { orderId?: string };
+  [key: string]: unknown;
+}
+
+interface CulqiRefundResponse {
+  id?: string;
+  object?: string;
+  amount?: number;
   [key: string]: unknown;
 }
 
@@ -78,6 +90,41 @@ export class CulqiPaymentGateway implements IPaymentGateway {
     const status = outcomeType === "venta_exitosa" ? "succeeded" : outcomeType ? "failed" : "pending";
 
     return { status, orderId: raw.metadata?.orderId ?? null };
+  }
+
+  /**
+   * POST /v2/refunds. El monto va en céntimos, igual que en el cargo.
+   *
+   * ⚠️ Escrito contra la API REST documentada de Culqi, NUNCA ejecutado contra un sandbox real —
+   * exactamente el mismo estado que createCharge (ver docs/IMPLEMENTATION_STATUS.md). Al
+   * conectar las credenciales reales hay que verificar dos cosas antes de confiar en esto: el
+   * nombre del campo de motivo (Culqi documenta un catálogo cerrado — "solicitud_comprador",
+   * "anulacion_venta", "error_administrativo"; acá se manda el texto libre del admin en
+   * `metadata` y un código fijo en `reason`), y si un reembolso parcial devuelve el mismo shape
+   * que uno total.
+   */
+  async refundCharge(input: CreateRefundInput): Promise<CreateRefundResult> {
+    const response = await fetch(CULQI_REFUNDS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.payment.culqiSecretKey}`,
+      },
+      body: JSON.stringify({
+        amount: Math.round(input.amount * 100),
+        charge_id: input.providerChargeId,
+        reason: CULQI_REFUND_REASON,
+        metadata: { detail: input.reason },
+      }),
+    });
+
+    const raw = (await response.json()) as CulqiRefundResponse;
+
+    if (!response.ok || !raw.id) {
+      return { providerRefundId: null, status: "failed", raw };
+    }
+
+    return { providerRefundId: raw.id, status: "succeeded", raw };
   }
 
   parseWebhookEvent(rawBody: Buffer): PaymentWebhookEvent {

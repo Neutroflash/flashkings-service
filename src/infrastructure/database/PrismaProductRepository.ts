@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import {
   AddProductImageInput,
   CreateProductData,
+  CreateProductVariantInput,
   IProductRepository,
   PaginatedResult,
   ProductFilters,
@@ -12,7 +13,7 @@ import {
 import { Product } from "../../domain/entities/Product";
 import { ProductVariant } from "../../domain/entities/ProductVariant";
 import { ProductImage } from "../../domain/entities/ProductImage";
-import { NotFoundError } from "../../shared/errors/AppError";
+import { ConflictError, NotFoundError } from "../../shared/errors/AppError";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -55,6 +56,7 @@ export class PrismaProductRepository implements IProductRepository {
     const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : DEFAULT_PAGE_SIZE;
 
     const where: Prisma.ProductWhereInput = {
+      ...(filters.onlyActive ? { isActive: true } : {}),
       ...(filters.categorySlug ? { category: { slug: filters.categorySlug } } : {}),
       ...(filters.isFeatured !== undefined ? { isFeatured: filters.isFeatured } : {}),
       ...(filters.search
@@ -92,6 +94,50 @@ export class PrismaProductRepository implements IProductRepository {
       include: productInclude,
     });
     return product ? toDomain(product) : null;
+  }
+
+  async deleteProduct(productId: string): Promise<void> {
+    const sales = await this.countProductSales(productId);
+    if (sales > 0) {
+      throw new ConflictError(
+        `Este producto ya se vendió (${sales} ${sales === 1 ? "unidad" : "unidades"}): no se puede borrar sin romper la trazabilidad de esas órdenes y sus comprobantes. Desactívalo para sacarlo del catálogo.`,
+      );
+    }
+    // Las variantes y las imágenes caen por cascade (ver schema.prisma).
+    await this.prisma.product.delete({ where: { id: productId } });
+  }
+
+  async countProductSales(productId: string): Promise<number> {
+    return this.prisma.orderItem.count({ where: { productVariant: { productId } } });
+  }
+
+  async addVariant(productId: string, data: CreateProductVariantInput): Promise<ProductVariant> {
+    const variant = await this.prisma.productVariant.create({
+      data: {
+        productId,
+        sku: data.sku,
+        name: data.name,
+        price: data.price,
+        costPrice: data.costPrice,
+        stock: data.stock,
+        attributes: (data.attributes ?? {}) as Prisma.InputJsonValue,
+      },
+    });
+    return toVariantDomain(variant);
+  }
+
+  async deleteVariant(variantId: string): Promise<void> {
+    const sales = await this.countVariantSales(variantId);
+    if (sales > 0) {
+      throw new ConflictError(
+        `Esta variante ya se vendió (${sales} ${sales === 1 ? "unidad" : "unidades"}): no se puede borrar. Desactívala para dejar de venderla.`,
+      );
+    }
+    await this.prisma.productVariant.delete({ where: { id: variantId } });
+  }
+
+  async countVariantSales(variantId: string): Promise<number> {
+    return this.prisma.orderItem.count({ where: { productVariantId: variantId } });
   }
 
   async findById(id: string): Promise<Product | null> {
@@ -146,6 +192,7 @@ export class PrismaProductRepository implements IProductRepository {
           ...(data.brand !== undefined ? { brand: data.brand } : {}),
           ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
           ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
         },
         include: productInclude,
       });
@@ -163,6 +210,7 @@ export class PrismaProductRepository implements IProductRepository {
           ...(data.price !== undefined ? { price: data.price } : {}),
           ...(data.costPrice !== undefined ? { costPrice: data.costPrice } : {}),
           ...(data.stock !== undefined ? { stock: data.stock } : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
         },
       });
       return toVariantDomain(variant);

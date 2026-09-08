@@ -63,6 +63,11 @@ model Product {
   categoryId  String   @map("category_id")
   category    Category @relation(fields: [categoryId], references: [id])
   isFeatured  Boolean  @default(false) @map("is_featured")
+  // Baja lógica. Un producto que ya se vendió NO se puede borrar: sus OrderItem (y, tras ellos,
+  // los RefundItem y el comprobante SUNAT ya emitido) lo referencian, y ese comprobante tiene que
+  // seguir siendo explicable — ya vive en los servidores de SUNAT. Desactivar lo saca del catálogo
+  // público, la búsqueda y el sitemap sin tocar una sola venta histórica.
+  isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -70,6 +75,7 @@ model Product {
   images   ProductImage[]
 
   @@index([categoryId])
+  @@index([isActive])
   @@index([isFeatured])
   @@map("products")
 }
@@ -87,6 +93,10 @@ model ProductVariant {
   stock         Int      @default(0)
   reservedStock Int      @default(0) @map("reserved_stock") // units held by PENDING_PAYMENT orders; available = stock - reservedStock
   attributes    Json     @default("{}")
+  // Misma baja lógica que Product, un nivel más abajo: sirve para descontinuar un color o un tipo
+  // de switch sin bajar el producto entero. Una variante inactiva no se puede comprar ni cuenta
+  // para el `inStock` público del producto.
+  isActive      Boolean  @default(true) @map("is_active")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -117,6 +127,12 @@ model ProductImage {
   @@map("product_images")
 }
 
+// REFUNDED is the terminal state of an order that WAS paid and got its money back in full.
+// It's deliberately separate from CANCELLED: CANCELLED means the order died before any money
+// moved (hold expired, charge declined, manual payment rejected), so there is nothing to return
+// and physical stock was never decremented. REFUNDED means the opposite on both counts — see
+// RefundOrderUseCase. A PARTIAL refund never reaches this state: the order keeps whatever status
+// it had (a delivered order stays DELIVERED) and only carries a Refund row.
 enum OrderStatus {
   PENDING_PAYMENT
   PAID
@@ -124,12 +140,21 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  REFUNDED
 }
 
 enum CancelReason {
   EXPIRED_HOLD
   PAYMENT_DECLINED
   ADMIN_CANCELLED
+}
+
+// Las dos zonas de la tarifa plana. "Lima Metropolitana" incluye la Provincia Constitucional del
+// Callao, como es práctica estándar del e-commerce peruano — y NO incluye las provincias del
+// departamento de Lima (Huaura, Cañete, Barranca…), que se despachan como provincia.
+enum ShippingZone {
+  LIMA_METROPOLITANA
+  PROVINCIA
 }
 
 model Order {
@@ -142,14 +167,32 @@ model Order {
   customerEmail   String        @map("customer_email")
   customerPhone   String        @map("customer_phone")
   shippingAddress String        @map("shipping_address")
+  // Ubicación estructurada, necesaria para tarifar el envío. `shippingAddress` sigue siendo la
+  // calle/referencia libre. Nullable porque las órdenes anteriores al envío tarifado no la tienen
+  // y no se puede inventar retroactivamente.
+  shippingDepartment String?    @map("shipping_department")
+  shippingProvince   String?    @map("shipping_province")
+  shippingDistrict   String?    @map("shipping_district")
+  // Zona congelada en la orden, no derivada al leer: si mañana cambia qué cuenta como Lima
+  // Metropolitana, una orden de hace tres meses debe seguir explicando el flete que se le cobró.
+  shippingZone    ShippingZone? @map("shipping_zone")
+  // Flete cobrado, ya incluido en totalAmount. Congelado igual que OrderItem.price: un cambio de
+  // tarifa posterior nunca altera lo que se le cobró a una orden ya creada.
+  shippingCost    Decimal       @default(0) @map("shipping_cost") @db.Decimal(10, 2)
   cancelReason    CancelReason? @map("cancel_reason")
   paidAt          DateTime?     @map("paid_at")
   cancelledAt     DateTime?     @map("cancelled_at")
   trackingNumber  String?       @map("tracking_number")
   courier         String?
+  refundedAt      DateTime?     @map("refunded_at")
   items           OrderItem[]
   payment         Payment?
-  invoice         Invoice?
+  // Was Invoice? (1-1) before credit notes existed. An order can now hold its comprobante plus
+  // one or more notas de crédito that correct it, so the relation is 1-N; the domain's Order
+  // still exposes a single `invoice` (the comprobante, never a note) plus `creditNotes` —
+  // see PrismaOrderRepository.toDomain.
+  invoices        Invoice[]
+  refunds         Refund[]
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -167,10 +210,79 @@ model OrderItem {
   productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
   quantity         Int
   price            Decimal        @db.Decimal(10, 2)
+  // How many units of this line have already been refunded across all partial refunds. Kept on
+  // the line (not derived by summing Refund rows) so the "can I still refund this item?" check is
+  // a single locked read of the same row it's about — same reasoning as reservedStock on
+  // ProductVariant. Always <= quantity; enforced inside the refund transaction.
+  refundedQuantity Int            @default(0) @map("refunded_quantity")
+
+  refundItems RefundItem[]
 
   @@index([orderId])
   @@index([productVariantId])
   @@map("order_items")
+}
+
+enum RefundStatus {
+  PENDING // registrada, el dinero todavía no volvió (reembolso manual sin ejecutar, o gateway async)
+  COMPLETED
+  FAILED
+}
+
+// Un reembolso: total (toda la orden) o parcial (algunos ítems/monto). Separado de Payment por la
+// misma razón que Payment está separado de Order — una orden puede acumular varios reembolsos
+// parciales contra un único cargo, así que la relación con Payment es 1-N, no 1-1.
+model Refund {
+  id               String       @id @default(uuid())
+  orderId          String       @map("order_id")
+  order            Order        @relation(fields: [orderId], references: [id])
+  paymentId        String?      @map("payment_id")
+  payment          Payment?     @relation(fields: [paymentId], references: [id])
+  amount           Decimal      @db.Decimal(10, 2)
+  // true = devolvió el total de la orden y la dejó en REFUNDED; false = parcial, la orden conserva su estado.
+  isFull           Boolean      @default(false) @map("is_full")
+  status           RefundStatus @default(PENDING)
+  // Catálogo 09 de SUNAT (motivo de nota de crédito) — se guarda acá porque es el mismo motivo
+  // que viaja al comprobante de corrección, no un texto aparte. Ver note-catalogs.ts.
+  reasonCode       String       @map("reason_code")
+  reasonText       String       @map("reason_text")
+  // Si el dinero se devolvió por fuera (transferencia manual, Yape del admin) en vez de por la
+  // API de la pasarela — el flujo espejo de SubmitManualPaymentUseCase en el lado del cobro.
+  isManual         Boolean      @default(false) @map("is_manual")
+  providerRefundId String?      @map("provider_refund_id")
+  rawResponse      Json?        @map("raw_response")
+  // Si se repuso el stock físico. Un producto que volvió al almacén sí; uno perdido/dañado en
+  // tránsito no — es decisión del admin al momento de reembolsar, no una regla automática.
+  restocked        Boolean      @default(false)
+  // Si este reembolso incluye el flete. Práctica estándar: se devuelve cuando la falla es del
+  // negocio (producto fallado, error de despacho, pedido que no se pudo cumplir) y no cuando el
+  // cliente se arrepiente — el envío ya se prestó como servicio. No se deriva del motivo SUNAT
+  // porque el catálogo 09 no distingue culpa: "06 Devolución total" cubre los dos casos.
+  includesShipping Boolean      @default(false) @map("includes_shipping")
+  createdById      String?      @map("created_by_id")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  items      RefundItem[]
+  creditNote Invoice?
+
+  @@index([orderId])
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+// Qué se devolvió, línea por línea. Vacío en un reembolso total por monto (sin desglose de ítems),
+// poblado en uno parcial — es lo que alimenta las líneas de la nota de crédito.
+model RefundItem {
+  id          String    @id @default(uuid())
+  refundId    String    @map("refund_id")
+  refund      Refund    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItemId String    @map("order_item_id")
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  quantity    Int
+
+  @@index([refundId])
+  @@index([orderItemId])
+  @@map("refund_items")
 }
 
 // Separate from Order: the gateway's charge lifecycle (retries, refunds, raw payload)
@@ -186,6 +298,8 @@ model Payment {
   rawResponse      Json?    @map("raw_response")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
+
+  refunds Refund[]
 
   @@map("payments")
 }
@@ -226,33 +340,47 @@ model Complaint {
 enum InvoiceType {
   BOLETA
   FACTURA
+  NOTA_CREDITO
 }
 
 enum InvoiceStatus {
   PENDING_SUNAT // SUNAT no respondió (no es un rechazo) — el XML ya está firmado, se reintenta el mismo envío
   ISSUED
   FAILED
+  // El comprobante fue corregido por una nota de crédito de anulación total (motivo 01/06 del
+  // catálogo 09) que SUNAT aceptó. Antes era un valor huérfano del enum, sin ningún flujo que lo
+  // produjera — ahora lo setea IssueCreditNoteUseCase.
   VOID
 }
 
-// Series/number counter per InvoiceType, kept as its own row (not a Prisma autoincrement column)
-// because SUNAT requires each comprobante type to have its own independent correlative sequence
-// (B001-1, B001-2... for boletas; F001-1, F001-2... for facturas) — a single shared autoincrement
-// column can't produce that. Updated atomically via upsert+increment inside the same transaction
-// that creates the Invoice — see PrismaInvoiceRepository.
+// Correlative counter per (type, series). The key is composite, not just `type`, because a nota
+// de crédito's series depends on WHICH document it corrects — BC01 when it corrects a boleta,
+// FC01 when it corrects a factura (see resolveNoteSeries in note-catalogs.ts) — so a single
+// NOTA_CREDITO row would force two independent SUNAT sequences to share one counter, which SUNAT
+// rejects. Boleta/Factura keep exactly one row each (B001/F001), so their behavior is unchanged.
+// Updated atomically via upsert+increment — see PrismaInvoiceRepository.reserveNumber.
 model InvoiceCounter {
-  type       InvoiceType @id
+  type       InvoiceType
+  series     String
   lastNumber Int         @default(0) @map("last_number")
 
+  @@id([type, series])
   @@map("invoice_counters")
 }
 
-// Comprobante de pago electrónico (SUNAT). NOT auto-issued on payment: this is a manual ADMIN
-// action on an already-paid order (see IssueInvoiceUseCase). Integración directa con SUNAT (sin
-// PSE/OSE) vía SunatInvoicingGateway — ver src/infrastructure/invoicing/sunat/.
+// Comprobante de pago electrónico (SUNAT): boleta, factura o nota de crédito. NOT auto-issued on
+// payment: this is a manual ADMIN action on an already-paid order (see IssueInvoiceUseCase).
+// Integración directa con SUNAT (sin PSE/OSE) vía SunatInvoicingGateway — ver
+// src/infrastructure/invoicing/sunat/.
+//
+// Las notas de crédito viven en esta misma tabla, no en una propia: comparten TODO el ciclo de
+// vida (correlativo reservado antes de emitir, firma XAdES, envío SOAP, PENDING_SUNAT con
+// reintento sobre el mismo signedXml, PDF bajo demanda). Una tabla aparte habría duplicado esos
+// ocho campos y el worker de reintento. Lo que las distingue son los dos campos de abajo.
 model Invoice {
   id               String        @id @default(uuid())
-  orderId          String        @unique @map("order_id")
+  // No longer @unique: an order holds its comprobante AND the notas de crédito that correct it.
+  orderId          String        @map("order_id")
   order            Order         @relation(fields: [orderId], references: [id])
   type             InvoiceType
   status           InvoiceStatus
@@ -271,5 +399,17 @@ model Invoice {
   issuedAt         DateTime?     @map("issued_at")
   createdAt        DateTime      @default(now()) @map("created_at")
 
+  // Solo en NOTA_CREDITO: qué comprobante corrige y por qué (catálogo 09). El par
+  // DiscrepancyResponse/BillingReference del XML sale de acá — es lo que hace que SUNAT la lea
+  // como una corrección de un documento existente y no como un comprobante suelto.
+  relatedInvoiceId String?       @map("related_invoice_id")
+  relatedInvoice   Invoice?      @relation("InvoiceCorrections", fields: [relatedInvoiceId], references: [id])
+  corrections      Invoice[]     @relation("InvoiceCorrections")
+  noteReasonCode   String?       @map("note_reason_code")
+  refundId         String?       @unique @map("refund_id")
+  refund           Refund?       @relation(fields: [refundId], references: [id])
+
+  @@index([orderId])
+  @@index([relatedInvoiceId])
   @@map("invoices")
 }

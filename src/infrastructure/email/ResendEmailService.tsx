@@ -3,11 +3,13 @@ import { render } from "@react-email/render";
 import { IEmailService } from "../../domain/services/IEmailService";
 import { Order } from "../../domain/entities/Order";
 import { Complaint } from "../../domain/entities/Complaint";
+import { Refund } from "../../domain/entities/Refund";
 import { User } from "../../domain/entities/User";
 import { env } from "../../config/env";
 import { logger } from "../logging/logger";
 import { OrderConfirmedEmail } from "./templates/OrderConfirmedEmail";
 import { OrderShippedEmail } from "./templates/OrderShippedEmail";
+import { OrderRefundedEmail } from "./templates/OrderRefundedEmail";
 import { ComplaintReceivedEmail } from "./templates/ComplaintReceivedEmail";
 import { PasswordResetEmail } from "./templates/PasswordResetEmail";
 import { VerifyEmailEmail } from "./templates/VerifyEmailEmail";
@@ -25,6 +27,14 @@ export class ResendEmailService implements IEmailService {
   async sendOrderShippedEmail(order: Order, trackingNumber: string | null, courier: string | null): Promise<void> {
     const html = await render(<OrderShippedEmail order={order} trackingNumber={trackingNumber} courier={courier} />);
     await this.send(order.customerEmail, `Tu pedido #${order.id.slice(0, 8)} está en camino`, html);
+  }
+
+  async sendOrderRefundedEmail(order: Order, refund: Refund): Promise<void> {
+    const html = await render(<OrderRefundedEmail order={order} refund={refund} />);
+    const subject = refund.isFull
+      ? `Devolvimos el total de tu pedido #${order.id.slice(0, 8)}`
+      : `Devolvimos S/ ${refund.amount.toFixed(2)} de tu pedido #${order.id.slice(0, 8)}`;
+    await this.send(order.customerEmail, subject, html);
   }
 
   async sendComplaintReceivedEmail(complaint: Complaint): Promise<void> {

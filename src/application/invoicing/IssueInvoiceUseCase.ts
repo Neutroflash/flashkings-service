@@ -2,12 +2,13 @@ import { IInvoiceRepository } from "../../domain/repositories/IInvoiceRepository
 import { IOrderRepository } from "../../domain/repositories/IOrderRepository";
 import { IInvoicingGateway } from "../../domain/services/IInvoicingGateway";
 import { ISunatRetryScheduler } from "../../domain/services/ISunatRetryScheduler";
-import { Invoice, InvoiceType } from "../../domain/entities/Invoice";
+import { CorrectableInvoiceType, Invoice } from "../../domain/entities/Invoice";
 import { ConflictError, NotFoundError } from "../../shared/errors/AppError";
 
 export interface IssueInvoiceInput {
   orderId: string;
-  type: InvoiceType;
+  /** Boleta o factura. Una nota de crédito se emite por IssueCreditNoteUseCase, a partir de un reembolso. */
+  type: CorrectableInvoiceType;
   documentType: string;
   documentNumber: string;
   businessName?: string;

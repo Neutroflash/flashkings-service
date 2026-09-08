@@ -24,6 +24,10 @@ export const orderRoutes = Router();
 
 // All public: guest checkout is allowed (Order.userId is optional). attachUserIfPresent
 // links the order to a logged-in user when a session cookie is present, without requiring one.
+// Antes de "/:id", que si no capturaría "shipping" como si fuera un id de orden.
+orderRoutes.get("/shipping/departments", asyncHandler(orderController.listDepartments));
+orderRoutes.get("/shipping/quote", asyncHandler(orderController.quoteShippingCost));
+
 orderRoutes.post("/validate-cart", asyncHandler(orderController.validateCart));
 orderRoutes.post("/", attachUserIfPresent, asyncHandler(orderController.create));
 // Registered before "/:id" — otherwise Express would try to match "mine" as an order id.
