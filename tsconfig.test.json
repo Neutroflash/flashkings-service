@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["bun"],
+    // Los tests de integración comprueban si hay base de datos con un `await` de nivel superior:
+    // `test.if(...)` se evalúa al DECLARAR el test, así que la comprobación no puede vivir en un
+    // beforeAll. Bun lo ejecuta sin problema; esto es solo para que tsc lo acepte al tipar. El
+    // build de producción sigue en commonjs, sin tocar.
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts"]
+}
