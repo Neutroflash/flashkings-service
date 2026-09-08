@@ -44,10 +44,13 @@ export interface SunatInvoicePayload {
   lineas: SunatInvoiceLine[];
 }
 
-/** Catálogo 01 de SUNAT — tipo de documento electrónico. */
-export const SUNAT_DOCUMENT_TYPE_CODE: Record<"BOLETA" | "FACTURA", string> = {
+/** Catálogo 01 de SUNAT — tipo de documento electrónico. Cubre los tres que este negocio emite:
+ * el código viaja en el nombre del archivo ZIP que recibe SUNAT, así que retryPending necesita
+ * poder resolverlo también para una nota. */
+export const SUNAT_DOCUMENT_TYPE_CODE: Record<"BOLETA" | "FACTURA" | "NOTA_CREDITO", string> = {
   FACTURA: "01",
   BOLETA: "03",
+  NOTA_CREDITO: "07",
 };
 
 export interface SunatCertificateConfig {
@@ -71,4 +74,31 @@ export interface SunatSendResult {
   responseCode?: string;
   description?: string;
   cdrZip?: Buffer;
+}
+
+/** Catálogo 01 — código de la nota de crédito como tipo de documento electrónico. */
+export const SUNAT_CREDIT_NOTE_TYPE_CODE = "07";
+
+export interface SunatRelatedDocument {
+  serie: string;
+  numero: number;
+  /** Catálogo 01 del documento corregido: "01" factura, "03" boleta. */
+  tipoDocumento: "01" | "03";
+}
+
+/**
+ * Payload de una nota de crédito. Reusa emisor/cliente/líneas de SunatInvoicePayload — lo único
+ * propio es a qué documento corrige y por qué (catálogo 09), que es justamente lo que convierte
+ * el XML en una corrección y no en un comprobante suelto.
+ */
+export interface SunatNotePayload {
+  serie: string;
+  numero: number;
+  fechaEmision: Date;
+  emisor: SunatPartyInfo;
+  cliente: SunatCustomerInfo;
+  lineas: SunatInvoiceLine[];
+  documentoRelacionado: SunatRelatedDocument;
+  motivoCodigo: string;
+  motivoDescripcion: string;
 }

@@ -8,6 +8,8 @@ export interface ProductVariant {
   stock: number;
   reservedStock: number; // units held by PENDING_PAYMENT orders; available = stock - reservedStock
   attributes: Record<string, unknown>;
+  /** Baja lógica: una variante inactiva no se vende ni se muestra. */
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

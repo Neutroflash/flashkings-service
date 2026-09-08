@@ -10,6 +10,8 @@ export interface Product {
   brand: string;
   categoryId: string;
   isFeatured: boolean;
+  /** Baja lógica — ver el comentario en schema.prisma. */
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   category?: Category;
@@ -36,7 +38,10 @@ export interface PublicProduct {
  * consumers. Only ADMIN-authenticated requests should ever see the raw Product entity.
  */
 export function toPublicProduct(product: Product): PublicProduct {
-  const variants = (product.variants ?? []).map(toPublicVariant);
+  // Las variantes inactivas se filtran ACÁ, en la frontera del dominio, y no en cada consulta:
+  // una variante descontinuada no debe aparecer en el selector del producto ni contar para
+  // `inStock` — mismo criterio que costPrice, que se quita en este mismo punto.
+  const variants = (product.variants ?? []).filter((v) => v.isActive).map(toPublicVariant);
   return {
     id: product.id,
     name: product.name,

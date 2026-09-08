@@ -13,6 +13,12 @@ erDiagram
   ProductVariant ||--o{ OrderItem : "se vende como"
   Order ||--o{ OrderItem : contiene
   Order ||--o| Payment : tiene
+  Order ||--o{ Refund : "devuelve"
+  Payment ||--o{ Refund : "revierte"
+  Refund ||--o{ RefundItem : detalla
+  OrderItem ||--o{ RefundItem : "se devuelve como"
+  Order ||--o{ Invoice : "comprobante + notas"
+  Invoice ||--o{ Invoice : corrige
 
   User {
     string id PK
@@ -95,6 +101,17 @@ Las variantes (switch, color, sensor, peso, polling rate...) varían por categor
 ### `OrderItem.price` congelado
 Nunca se relee `ProductVariant.price` después de creada la orden. Si el admin sube el precio de un producto, las órdenes ya creadas conservan el precio con el que se compró — es el comprobante legal de la transacción.
 
+### `Refund` separado de `Payment`
+Misma razón por la que `Payment` está separado de `Order`: una orden puede acumular **varios** reembolsos parciales contra un único cargo, así que la relación es 1-N. `RefundItem` guarda qué líneas se devolvieron — vacío en un reembolso por monto sin desglose, poblado en uno por ítems, y es lo que alimenta las líneas de la nota de crédito.
+
+`OrderItem.refundedQuantity` acumula lo ya devuelto en la propia línea en vez de derivarse sumando `RefundItem`s. Así la pregunta "¿todavía puedo devolver esta unidad?" es una lectura bloqueada de la misma fila sobre la que se va a escribir — el mismo razonamiento que `reservedStock` en `ProductVariant`.
+
+### `Invoice` con `orderId` no único y auto-relación
+Una orden ya no tiene *un* comprobante: tiene su boleta o factura **más** las notas de crédito que la corrigen. Las notas viven en esta misma tabla porque comparten todo el ciclo de vida (correlativo reservado antes de emitir, firma XAdES, envío SOAP, `PENDING_SUNAT` reintentable sobre el mismo `signedXml`, PDF bajo demanda); una tabla aparte habría duplicado esos campos y el worker de reintento. Lo que las distingue son `relatedInvoiceId` (qué corrige), `noteReasonCode` (catálogo 09) y `refundId`. El dominio sigue exponiendo un solo `Order.invoice` — el comprobante, nunca una nota — más `creditNotes` aparte, así que el código anterior no cambió de forma.
+
+### `InvoiceCounter` con clave compuesta `(type, series)`
+La serie de una nota depende de qué documento corrige: `BC01` sobre una boleta, `FC01` sobre una factura. Son dos secuencias correlativas independientes ante SUNAT, así que una sola fila `NOTA_CREDITO` las habría forzado a compartir contador. Boleta y factura siguen con exactamente una fila cada una (`B001`/`F001`).
+
 ### `Payment` separado de `Order`
 Tienen ciclos de vida distintos: `Order` es la máquina de estados propia del negocio (`PENDING_PAYMENT → PAID → IN_PREPARATION → ...`); `Payment` es el reflejo del ciclo de vida de la pasarela (reintentos, reembolsos futuros, el payload crudo para auditoría). Fusionarlos habría mezclado dos vocabularios de estado distintos en una sola tabla.
 
@@ -116,3 +133,5 @@ Se evitó agregar un estado `EXPIRED` al lado de `CANCELLED` — desde la perspe
 1. `init` — modelos base de catálogo (`User`, `Category`, `Product`, `ProductVariant`, `ProductImage`).
 2. `orders_payments` — `Order`, `OrderItem`, `Payment`, `reservedStock` en `ProductVariant`.
 3. `order_shipping_tracking` — `trackingNumber`/`courier` en `Order`.
+4. `post_sale_refunds_and_credit_notes` — `Refund`/`RefundItem`, estado `REFUNDED`, `OrderItem.refundedQuantity`, `Order.refundedAt`, tipo `NOTA_CREDITO`, auto-relación de `Invoice` y clave compuesta en `InvoiceCounter`. La columna `series` se agregó nullable y se rellenó (`B001`/`F001`) antes de volverla `NOT NULL`, porque agregarla obligatoria de una falla en cualquier base que ya haya emitido un comprobante.
+5. `flat_rate_shipping` — `shippingCost`/`shippingZone` y el destino estructurado (departamento, provincia, distrito) en `Order`, más `Refund.includesShipping`. Todo con default o nullable: las órdenes anteriores quedan con flete 0, que es exactamente lo que se les cobró.

@@ -16,6 +16,12 @@ export class GetProductBySlugUseCase {
       return product;
     }
 
+    // Para el público, un producto desactivado no existe: 404, no una página vacía. Así el
+    // enlace deja de ser indexable y el cliente no ve una ficha sin nada que comprar.
+    if (!product.isActive) {
+      throw new NotFoundError("Producto no encontrado");
+    }
+
     return toPublicProduct(product);
   }
 }

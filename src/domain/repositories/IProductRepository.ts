@@ -8,6 +8,12 @@ export interface ProductFilters {
   search?: string;
   page?: number;
   pageSize?: number;
+  /**
+   * true = solo productos activos (catálogo público, sitemap). undefined = todos, que es lo que
+   * necesita el panel para poder reactivar lo que desactivó. Explícito y no un default silencioso:
+   * quien consulta tiene que decidir de qué lado está.
+   */
+  onlyActive?: boolean;
 }
 
 export interface PaginatedResult<T> {
@@ -47,6 +53,7 @@ export interface UpdateProductVariantData {
   price?: number;
   costPrice?: number;
   stock?: number;
+  isActive?: boolean;
 }
 
 // slug is deliberately excluded: it's the product's public URL (/producto/[slug]) and may
@@ -59,6 +66,7 @@ export interface UpdateProductData {
   brand?: string;
   categoryId?: string;
   isFeatured?: boolean;
+  isActive?: boolean;
 }
 
 export interface AddProductImageInput {
@@ -84,6 +92,18 @@ export interface IProductRepository {
   create(data: CreateProductData): Promise<Product>;
   /** ADMIN-only. slug is never editable here — see UpdateProductData. */
   updateProduct(productId: string, data: UpdateProductData): Promise<Product>;
+  /**
+   * Borra un producto de verdad. Solo es posible si nunca se vendió: en cuanto existe un OrderItem
+   * que lo referencia, borrarlo destruiría la trazabilidad de una orden y del comprobante SUNAT ya
+   * emitido. En ese caso lanza ConflictError y el camino correcto es desactivarlo.
+   */
+  deleteProduct(productId: string): Promise<void>;
+  /** Cuántas unidades vendidas referencian a este producto — 0 significa que se puede borrar. */
+  countProductSales(productId: string): Promise<number>;
+  addVariant(productId: string, data: CreateProductVariantInput): Promise<ProductVariant>;
+  /** Misma regla que deleteProduct, un nivel más abajo. */
+  deleteVariant(variantId: string): Promise<void>;
+  countVariantSales(variantId: string): Promise<number>;
   /** ADMIN-only. reservedStock is intentionally not editable — it's system-managed by the order flow. */
   updateVariant(variantId: string, data: UpdateProductVariantData): Promise<ProductVariant>;
   findVariantById(variantId: string): Promise<ProductVariant | null>;

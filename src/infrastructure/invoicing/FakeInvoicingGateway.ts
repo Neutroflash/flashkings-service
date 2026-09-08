@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
 import { Invoice } from "../../domain/entities/Invoice";
-import { IInvoicingGateway, IssueInvoiceInput, IssueInvoiceResult } from "../../domain/services/IInvoicingGateway";
+import {
+  IInvoicingGateway,
+  IssueCreditNoteInput,
+  IssueInvoiceInput,
+  IssueInvoiceResult,
+} from "../../domain/services/IInvoicingGateway";
 
 /** Dev/test stand-in: default until SUNAT_PROVIDER=sunat — see the comment on IInvoicingGateway. */
 export class FakeInvoicingGateway implements IInvoicingGateway {
@@ -11,6 +16,23 @@ export class FakeInvoicingGateway implements IInvoicingGateway {
       pdfUrl: `https://fake-invoicing.local/${input.series}-${input.number}/${fakeId}.pdf`,
       xmlUrl: `https://fake-invoicing.local/${input.series}-${input.number}/${fakeId}.xml`,
       raw: { fake: true, series: input.series, number: input.number, orderId: input.order.id },
+      signedXml: null,
+    };
+  }
+
+  async issueCreditNote(input: IssueCreditNoteInput): Promise<IssueInvoiceResult> {
+    const fakeId = randomUUID();
+    return {
+      status: "ISSUED",
+      pdfUrl: `https://fake-invoicing.local/${input.series}-${input.number}/${fakeId}.pdf`,
+      xmlUrl: `https://fake-invoicing.local/${input.series}-${input.number}/${fakeId}.xml`,
+      raw: {
+        fake: true,
+        series: input.series,
+        number: input.number,
+        corrects: `${input.relatedInvoice.series}-${input.relatedInvoice.number}`,
+        reasonCode: input.reasonCode,
+      },
       signedXml: null,
     };
   }

@@ -25,7 +25,7 @@ const PAYMENT_PROVIDER_LABEL: Record<string, string> = {
 
 export interface TicketComprobanteData {
   emisor: { businessName: string; ruc: string; address: string; phone?: string };
-  comprobante: { tipo: "BOLETA" | "FACTURA"; serie: string; numero: number; fechaEmision: string };
+  comprobante: { tipo: "BOLETA" | "FACTURA" | "NOTA_CREDITO"; serie: string; numero: number; fechaEmision: string };
   cliente: { nombre: string; documentoTipo: string; documentoNumero: string };
   pago: { forma: "CONTADO" | "CREDITO"; medio?: string };
   items: { cantidad: number; descripcion: string; precioUnitario: number; importe: number }[];

@@ -18,9 +18,13 @@ export class GetProductsUseCase {
    * everyone else gets the sanitized PublicProduct projection.
    */
   async execute(filters: ProductFilters, requesterRole?: Role): Promise<GetProductsResult<Product | PublicProduct>> {
-    const result = await this.productRepository.findMany(filters);
+    const isAdmin = requesterRole === "ADMIN";
+    // El mismo endpoint sirve al catálogo y al panel. Un ADMIN necesita ver lo desactivado para
+    // poder reactivarlo; cualquier otro no debe verlo. El filtro se decide acá y no lo elige el
+    // llamador, para que un query param no pueda destapar el catálogo oculto.
+    const result = await this.productRepository.findMany({ ...filters, onlyActive: !isAdmin });
 
-    if (requesterRole === "ADMIN") {
+    if (isAdmin) {
       return result;
     }
 

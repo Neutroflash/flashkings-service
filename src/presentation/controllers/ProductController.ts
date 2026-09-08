@@ -8,6 +8,10 @@ import { UpdateProductVariantUseCase } from "../../application/products/UpdatePr
 import { AddProductImageUseCase } from "../../application/products/AddProductImageUseCase";
 import { UpdateProductImageUseCase } from "../../application/products/UpdateProductImageUseCase";
 import { DeleteProductImageUseCase } from "../../application/products/DeleteProductImageUseCase";
+import { DeleteProductUseCase } from "../../application/products/DeleteProductUseCase";
+import { AddProductVariantUseCase } from "../../application/products/AddProductVariantUseCase";
+import { DeleteProductVariantUseCase } from "../../application/products/DeleteProductVariantUseCase";
+import { SignImageUploadUseCase } from "../../application/products/SignImageUploadUseCase";
 
 const listQuerySchema = z.object({
   category: z.string().optional(),
@@ -52,12 +56,16 @@ const updateProductSchema = z.object({
   brand: z.string().min(1).optional(),
   categoryId: z.string().uuid().optional(),
   isFeatured: z.boolean().optional(),
+  // Baja/alta lógica. Desactivar saca el producto del catálogo, la búsqueda y el sitemap sin
+  // tocar ninguna venta histórica — ver el comentario en schema.prisma.
+  isActive: z.boolean().optional(),
 });
 
 const updateVariantSchema = z.object({
   price: z.number().positive().optional(),
   costPrice: z.number().nonnegative().optional(),
   stock: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional(),
 });
 
 const addImageSchema = z.object({
@@ -85,6 +93,10 @@ export class ProductController {
     private readonly addProductImageUseCase: AddProductImageUseCase,
     private readonly updateProductImageUseCase: UpdateProductImageUseCase,
     private readonly deleteProductImageUseCase: DeleteProductImageUseCase,
+    private readonly deleteProductUseCase: DeleteProductUseCase,
+    private readonly addProductVariantUseCase: AddProductVariantUseCase,
+    private readonly deleteProductVariantUseCase: DeleteProductVariantUseCase,
+    private readonly signImageUploadUseCase: SignImageUploadUseCase,
   ) {}
 
   // Public endpoint: req.user is populated only if a valid ADMIN/CLIENT session cookie
@@ -121,6 +133,29 @@ export class ProductController {
     const input = updateProductSchema.parse(req.body);
     const product = await this.updateProductUseCase.execute(req.params.productId, input);
     res.status(200).json({ product });
+  };
+
+  // ADMIN-only. Solo borra de verdad si el producto nunca se vendió; si tiene ventas devuelve 409
+  // y el camino es desactivarlo.
+  deleteProduct = async (req: Request, res: Response): Promise<void> => {
+    await this.deleteProductUseCase.execute(req.params.productId);
+    res.status(204).send();
+  };
+
+  addVariant = async (req: Request, res: Response): Promise<void> => {
+    const input = variantSchema.parse(req.body);
+    const variant = await this.addProductVariantUseCase.execute(req.params.productId, input);
+    res.status(201).json({ variant });
+  };
+
+  deleteVariant = async (req: Request, res: Response): Promise<void> => {
+    await this.deleteProductVariantUseCase.execute(req.params.id);
+    res.status(204).send();
+  };
+
+  /** Devuelve la firma para que el navegador suba la imagen directo a Cloudinary. */
+  signImageUpload = async (_req: Request, res: Response): Promise<void> => {
+    res.status(200).json(this.signImageUploadUseCase.execute());
   };
 
   // ADMIN-only. reservedStock is never accepted here — it's system-managed by the order flow.

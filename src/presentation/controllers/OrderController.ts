@@ -6,6 +6,7 @@ import { GetOrderByIdUseCase } from "../../application/orders/GetOrderByIdUseCas
 import { ListOrdersUseCase } from "../../application/orders/ListOrdersUseCase";
 import { toPublicOrder } from "../../domain/entities/Order";
 import { env } from "../../config/env";
+import { PERU_DEPARTMENTS, quoteShipping } from "../../domain/entities/Shipping";
 
 const cartItemSchema = z.object({
   variantId: z.string().uuid(),
@@ -20,8 +21,19 @@ const createOrderSchema = z.object({
   customerName: z.string().min(2),
   customerEmail: z.string().email(),
   customerPhone: z.string().min(6),
+  /** Calle y referencia. La ubicación que tarifa el envío son los tres campos siguientes. */
   shippingAddress: z.string().min(5),
+  // Se valida contra la lista real de departamentos: de acá sale la zona y, con ella, el flete.
+  // Un valor libre haría que cualquier typo cayera en PROVINCIA y cobrara S/ 25 de más.
+  shippingDepartment: z.enum(PERU_DEPARTMENTS),
+  shippingProvince: z.string().trim().min(2).max(60),
+  shippingDistrict: z.string().trim().min(2).max(60),
   items: z.array(cartItemSchema).min(1),
+});
+
+const shippingQuoteSchema = z.object({
+  department: z.enum(PERU_DEPARTMENTS),
+  province: z.string().trim().min(2).max(60),
 });
 
 export class OrderController {
@@ -31,6 +43,19 @@ export class OrderController {
     private readonly getOrderByIdUseCase: GetOrderByIdUseCase,
     private readonly listOrdersUseCase: ListOrdersUseCase,
   ) {}
+
+  /** Cotiza el flete antes de crear la orden, para que el checkout muestre el total real. La
+   * tarifa definitiva se vuelve a calcular en el servidor al crear la orden — esto es solo UX. */
+  quoteShippingCost = async (req: Request, res: Response): Promise<void> => {
+    const input = shippingQuoteSchema.parse(req.query);
+    const quote = quoteShipping(input.department, input.province);
+    res.status(200).json(quote);
+  };
+
+  /** La lista que alimenta el selector del checkout. */
+  listDepartments = async (_req: Request, res: Response): Promise<void> => {
+    res.status(200).json({ departments: PERU_DEPARTMENTS });
+  };
 
   // Non-authoritative UX check before checkout — see ValidateCartUseCase.
   validateCart = async (req: Request, res: Response): Promise<void> => {
@@ -48,12 +73,18 @@ export class OrderController {
       customerEmail: input.customerEmail,
       customerPhone: input.customerPhone,
       shippingAddress: input.shippingAddress,
+      shippingDepartment: input.shippingDepartment,
+      shippingProvince: input.shippingProvince,
+      shippingDistrict: input.shippingDistrict,
       items: input.items.map((item) => ({ productVariantId: item.variantId, quantity: item.quantity })),
     });
 
+    // totalAmount ya incluye el flete y es el monto que el checkout debe cobrar — el cliente nunca
+    // vuelve a sumar su propio total para pasárselo a la pasarela.
     res.status(201).json({
       orderId: order.id,
       totalAmount: order.totalAmount,
+      shippingCost: order.shippingCost,
       publicKey: env.payment.culqiPublicKey,
     });
   };

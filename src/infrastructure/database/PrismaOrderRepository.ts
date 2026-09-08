@@ -7,49 +7,8 @@ import {
 } from "../../domain/repositories/IOrderRepository";
 import { ALLOWED_MANUAL_TRANSITIONS, CancelReason, Order, OrderStatus } from "../../domain/entities/Order";
 import { ConflictError, InsufficientStockError, NotFoundError } from "../../shared/errors/AppError";
-
-const orderInclude = {
-  items: { include: { productVariant: true } },
-  payment: true,
-  invoice: true,
-} satisfies Prisma.OrderInclude;
-
-type OrderWithRelations = Prisma.OrderGetPayload<{ include: typeof orderInclude }>;
-
-function toDomain(order: OrderWithRelations): Order {
-  return {
-    id: order.id,
-    userId: order.userId,
-    status: order.status as OrderStatus,
-    totalAmount: order.totalAmount.toNumber(),
-    customerName: order.customerName,
-    customerEmail: order.customerEmail,
-    customerPhone: order.customerPhone,
-    shippingAddress: order.shippingAddress,
-    cancelReason: order.cancelReason as CancelReason | null,
-    paidAt: order.paidAt,
-    cancelledAt: order.cancelledAt,
-    trackingNumber: order.trackingNumber,
-    courier: order.courier,
-    payment: order.payment ? { ...order.payment, amount: order.payment.amount.toNumber() } : null,
-    invoice: order.invoice,
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
-    items: order.items.map((item) => ({
-      id: item.id,
-      orderId: item.orderId,
-      productVariantId: item.productVariantId,
-      quantity: item.quantity,
-      price: item.price.toNumber(),
-      productVariant: {
-        ...item.productVariant,
-        price: item.productVariant.price.toNumber(),
-        costPrice: item.productVariant.costPrice.toNumber(),
-        attributes: item.productVariant.attributes as Record<string, unknown>,
-      },
-    })),
-  };
-}
+import { quoteShipping } from "../../domain/entities/Shipping";
+import { orderInclude, toDomainOrder as toDomain } from "./orderMapper";
 
 // Reverse-derived from ALLOWED_MANUAL_TRANSITIONS: each manual target status has exactly
 // one valid prior status, which lets updateStatus() be a single atomic conditional UPDATE.
@@ -65,6 +24,7 @@ interface LockedVariantRow {
   stock: number;
   reserved_stock: number;
   price: unknown;
+  is_active: boolean;
 }
 
 export class PrismaOrderRepository implements IOrderRepository {
@@ -80,7 +40,7 @@ export class PrismaOrderRepository implements IOrderRepository {
 
       for (const item of sortedItems) {
         const rows = await tx.$queryRaw<LockedVariantRow[]>`
-          SELECT id, stock, reserved_stock, price
+          SELECT id, stock, reserved_stock, price, is_active
           FROM product_variants
           WHERE id = ${item.productVariantId}
           FOR UPDATE
@@ -88,6 +48,12 @@ export class PrismaOrderRepository implements IOrderRepository {
         const row = rows[0];
         if (!row) {
           throw new NotFoundError(`Variante de producto no encontrada: ${item.productVariantId}`);
+        }
+        // Se comprueba acá dentro, con la fila bloqueada, y no en una lectura previa: entre una
+        // validación optimista y este punto el admin puede haber desactivado la variante, y el
+        // checkout la vendería igual. Mismo razonamiento que la disponibilidad de stock.
+        if (!row.is_active) {
+          throw new ConflictError(`Esta variante ya no está a la venta: ${item.productVariantId}`);
         }
 
         const available = row.stock - row.reserved_stock;
@@ -108,6 +74,12 @@ export class PrismaOrderRepository implements IOrderRepository {
         totalAmount += unitPrice * item.quantity;
       }
 
+      // El flete se tarifa acá, en el servidor, a partir del destino — nunca se acepta un monto
+      // enviado por el cliente, que sería manipulable desde el navegador. Queda congelado en la
+      // orden por la misma razón que OrderItem.price: una tarifa nueva no reescribe ventas viejas.
+      const { zone, cost: shippingCost } = quoteShipping(input.shippingDepartment, input.shippingProvince);
+      totalAmount += shippingCost;
+
       const order = await tx.order.create({
         data: {
           userId: input.userId ?? null,
@@ -115,6 +87,11 @@ export class PrismaOrderRepository implements IOrderRepository {
           customerEmail: input.customerEmail,
           customerPhone: input.customerPhone,
           shippingAddress: input.shippingAddress,
+          shippingDepartment: input.shippingDepartment,
+          shippingProvince: input.shippingProvince,
+          shippingDistrict: input.shippingDistrict,
+          shippingZone: zone,
+          shippingCost,
           totalAmount,
           items: {
             create: frozenItems.map((item) => ({

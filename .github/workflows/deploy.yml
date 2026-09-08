@@ -26,11 +26,65 @@ jobs:
       - name: Type-check
         run: bunx tsc --noEmit -p tsconfig.json
 
+      - name: Type-check tests
+        run: bun run typecheck:test
+
       - name: Lint
         run: bun run lint
 
+      # Sin base de datos: puros de dominio (IGV, XML SUNAT, zonas de envío, sanitización pública,
+      # reglas de reembolso). Los de integración necesitan Postgres y corren en el job de abajo.
+      - name: Unit tests
+        run: bun run test
+
       - name: Build
         run: bun run build
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: flashkings_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/flashkings_test?schema=public
+      # Los tests de integración que ejercitan casos de uso (y no solo repositorios) arrastran
+      # src/config/env.ts, que exige estas tres con required() y aborta el proceso si faltan. No
+      # se usan para nada acá — la conexión real sale de TEST_DATABASE_URL — pero sin ellas el
+      # módulo no llega a cargar. Los secretos son de relleno a propósito: en CI no hay nada que
+      # firmar de verdad.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/flashkings_test?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-not-used
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-used
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: bunx prisma generate
+
+      # La misma cadena de migraciones que producción, contra una base limpia: si una migración no
+      # aplica sobre cero, esto lo detecta antes que un deploy.
+      - name: Apply migrations to the test database
+        run: bunx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+      # Concurrencia real del stock hold, idempotencia del pago, guardas de reembolso y baja
+      # lógica del catálogo — todo lo que solo se puede comprobar contra Postgres de verdad.
+      - name: Integration tests
+        run: bun run test:integration
 
   # Deploy is intentionally left as a manual/documented step, not automated here: Railway/Render
   # both offer "deploy on push to main" via their own GitHub integration (connect the repo in

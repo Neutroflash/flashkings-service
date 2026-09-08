@@ -2,10 +2,12 @@ import { render } from "@react-email/render";
 import { IEmailService } from "../../domain/services/IEmailService";
 import { Order } from "../../domain/entities/Order";
 import { Complaint } from "../../domain/entities/Complaint";
+import { Refund } from "../../domain/entities/Refund";
 import { User } from "../../domain/entities/User";
 import { logger } from "../logging/logger";
 import { OrderConfirmedEmail } from "./templates/OrderConfirmedEmail";
 import { OrderShippedEmail } from "./templates/OrderShippedEmail";
+import { OrderRefundedEmail } from "./templates/OrderRefundedEmail";
 import { ComplaintReceivedEmail } from "./templates/ComplaintReceivedEmail";
 import { PasswordResetEmail } from "./templates/PasswordResetEmail";
 import { VerifyEmailEmail } from "./templates/VerifyEmailEmail";
@@ -28,6 +30,15 @@ export class ConsoleEmailService implements IEmailService {
     logger.info(
       { to: order.customerEmail, orderId: order.id, trackingNumber, courier },
       "[email:console] OrderShippedEmail",
+    );
+    logger.debug({ text });
+  }
+
+  async sendOrderRefundedEmail(order: Order, refund: Refund): Promise<void> {
+    const text = await render(<OrderRefundedEmail order={order} refund={refund} />, { plainText: true });
+    logger.info(
+      { to: order.customerEmail, orderId: order.id, refundId: refund.id, amount: refund.amount, isFull: refund.isFull },
+      "[email:console] OrderRefundedEmail",
     );
     logger.debug({ text });
   }
