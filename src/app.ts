@@ -7,6 +7,7 @@ import { apiRouter } from "./presentation/routes";
 import { errorHandler, notFoundHandler } from "./presentation/middlewares/errorHandler";
 import { env } from "./config/env";
 import { logger } from "./infrastructure/logging/logger";
+import { ForbiddenError } from "./shared/errors/AppError";
 
 export function createApp(): Application {
   const app = express();
@@ -26,8 +27,19 @@ export function createApp(): Application {
           callback(null, true);
           return;
         }
+        // Un Error pelado acá termina en el catch-all del errorHandler y sale como 500, que es
+        // mentira: el servidor no falló, rechazó el origen a propósito. Peor aún, disfraza un
+        // problema de configuración de "Internal Server Error" y manda a buscar el bug al lugar
+        // equivocado — pasó exactamente eso al diagnosticar los deployments de preview de Vercel.
+        // Con un AppError tipado, el mismo errorHandler responde 403 y dice la verdad.
+        //
+        // Se sigue cortando acá, antes de que la petición llegue a su handler. La alternativa
+        // canónica del paquete cors —`callback(null, false)`, omitir los headers y dejarla pasar—
+        // también funcionaría (el navegador bloquea igual, porque lo que protege es la ausencia
+        // del header), pero haría que un origen ajeno sí ejecutara el endpoint. No hay razón para
+        // relajar eso ahora: lo que estaba mal era el código de estado, no el corte.
         logger.warn({ origin }, "Blocked CORS request from disallowed origin");
-        callback(new Error("No permitido por la política de CORS"));
+        callback(new ForbiddenError("Origen no permitido por la política de CORS"));
       },
       credentials: true, // required so browsers send/receive the HttpOnly auth cookies
     }),
